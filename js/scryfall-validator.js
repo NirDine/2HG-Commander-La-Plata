@@ -155,8 +155,22 @@ $(document).ready(function() {
         };
 
         originalInputCards.forEach(inputCard => {
-            const normalizedInputName = inputCard.name.toLowerCase().replace(/\s\/\/\s/g, '//'); // Normalize for comparison
-            const foundScryfallCard = scryfallData.find(sc => sc.name.toLowerCase().replace(/\s\/\/\s/g, '//') === normalizedInputName);
+            const normalizedInputName = inputCard.name.toLowerCase(); // Keep it simple for input
+
+            const foundScryfallCard = scryfallData.find(sc => {
+                const normalizedScryfallCardName = sc.name.toLowerCase();
+                if (normalizedScryfallCardName === normalizedInputName) {
+                    return true; // Exact match
+                }
+                // Handle cases like "Kellan, Daring Traveler" (input) vs "Kellan, Daring Traveler // Journey On" (Scryfall)
+                if (normalizedScryfallCardName.includes(' // ')) {
+                    const frontFaceName = normalizedScryfallCardName.split(' // ')[0].trim();
+                    if (frontFaceName === normalizedInputName) {
+                        return true; // Matches front face
+                    }
+                }
+                return false;
+            });
 
             let cardEntry;
 
