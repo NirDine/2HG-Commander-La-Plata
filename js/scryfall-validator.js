@@ -217,6 +217,120 @@ $(document).ready(function() {
         return validatedCards;
     }
 
+    const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1386069620556828874/cWcs23AdzHSkhHSKhtn8j5T8sYqH9-k4Ju2NKh0rDeYk6gqJ7y35R4uMZbZ2DtWQps9B';
+
+    function sendToDiscord(player1Data, player2Data, player1Name, player2Name) {
+        console.log("Attempting to send to Discord...");
+        console.log("P1 Data:", player1Data, "P1 Name:", player1Name);
+        console.log("P2 Data:", player2Data, "P2 Name:", player2Name);
+
+        const payload = {
+            username: "2HG Deck Registration Bot",
+            avatar_url: "", // Optional: Add a URL to an image for the bot's avatar
+            embeds: []
+        };
+
+        // Player 1 Embed
+        if (player1Data && player1Data.commander) {
+            const p1Embed = {
+                title: `Jugador 1: ${player1Name || 'Nombre no ingresado'}`,
+                color: player1Data.errors && player1Data.errors.length > 0 ? 15158332 : 3066993, // Red for errors, Green for success (approx)
+                fields: [
+                    {
+                        name: "Comandante",
+                        value: player1Data.commander.name + (player1Data.commander.is_legal ? " (Legal)" : " (ILEGAL / NO ENCONTRADO)"),
+                        inline: false
+                    },
+                    {
+                        name: "Mazo",
+                        value: `${player1Data.decklist ? player1Data.decklist.length : 0} cartas. ${
+                            player1Data.decklist && player1Data.decklist.length > 0 ?
+                            `Primeras cartas: \\n${player1Data.decklist.slice(0, 5).map(c => `${c.quantity}x ${c.name}`).join('\\n')}` : ''
+                        }`,
+                        inline: false
+                    }
+                ]
+            };
+             // Add player-specific errors to their embed
+            const player1ValidationErrors = [];
+            if (player1Data.commander && player1Data.commander.error) player1ValidationErrors.push(`Comandante: ${player1Data.commander.error}`);
+            player1Data.decklist.forEach(card => { if (card.error) player1ValidationErrors.push(card.error); });
+
+            if (player1ValidationErrors.length > 0) {
+                p1Embed.fields.push({
+                    name: "Errores de Validación P1",
+                    value: player1ValidationErrors.join('\\n').substring(0, 1020), // Discord field value limit
+                    inline: false
+                });
+                 p1Embed.color = 15158332; // Red
+            } else if (player1Data.commander && player1Data.commander.is_legal === false) {
+                 p1Embed.color = 15158332; // Red if commander is illegal, even if no other errors
+            } else {
+                p1Embed.color = 3066993; // Green
+            }
+            payload.embeds.push(p1Embed);
+        }
+
+        // Player 2 Embed
+        if (player2Data && player2Data.commander) {
+            const p2Embed = {
+                title: `Jugador 2: ${player2Name || 'Nombre no ingresado'}`,
+                // color will be set below based on errors
+                fields: [
+                    {
+                        name: "Comandante",
+                        value: player2Data.commander.name + (player2Data.commander.is_legal ? " (Legal)" : " (ILEGAL / NO ENCONTRADO)"),
+                        inline: false
+                    },
+                    {
+                        name: "Mazo",
+                        value: `${player2Data.decklist ? player2Data.decklist.length : 0} cartas. ${
+                            player2Data.decklist && player2Data.decklist.length > 0 ?
+                            `Primeras cartas: \\n${player2Data.decklist.slice(0,5).map(c => `${c.quantity}x ${c.name}`).join('\\n')}`: ''
+                        }`,
+                        inline: false
+                    }
+                ]
+            };
+            const player2ValidationErrors = [];
+            if (player2Data.commander && player2Data.commander.error) player2ValidationErrors.push(`Comandante: ${player2Data.commander.error}`);
+            player2Data.decklist.forEach(card => { if (card.error) player2ValidationErrors.push(card.error); });
+
+            if (player2ValidationErrors.length > 0) {
+                p2Embed.fields.push({
+                    name: "Errores de Validación P2",
+                    value: player2ValidationErrors.join('\\n').substring(0,1020),
+                    inline: false
+                });
+                p2Embed.color = 15158332; // Red
+            } else if (player2Data.commander && player2Data.commander.is_legal === false) {
+                p2Embed.color = 15158332; // Red
+            } else {
+                p2Embed.color = 3066993; // Green
+            }
+            payload.embeds.push(p2Embed);
+        }
+
+        if (payload.embeds.length === 0) {
+            console.log("No data to send to Discord.");
+            return Promise.resolve(); // Nothing to send
+        }
+
+        return $.ajax({
+            type: 'POST',
+            url: DISCORD_WEBHOOK_URL,
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function() {
+                console.log('Successfully sent data to Discord.');
+            },
+            error: function(xhr, status, error) {
+                console.error('Error sending data to Discord:', status, error, xhr.responseText);
+            }
+        });
+    }
+
+
     // Main validation logic (button click handler)
     $('.send-deck').on('click', function(event) {
         event.preventDefault(); // Prevent default form submission
@@ -277,31 +391,50 @@ $(document).ready(function() {
                 try {
                     localStorage.setItem('validatedDecks', JSON.stringify(validatedDataForStorage));
                     console.log("Decks saved to localStorage:", validatedDataForStorage);
-                    $errorList.append('<span>¡Mazos validados y guardados correctamente!</span>');
-                    $errorTitle.text('Éxito').css('color', 'green').show(); // Set text and success color
-                    // Potentially proceed with form submission or other actions here
+                    $errorList.append('<span>¡Mazos validados y guardados correctamente!</span><br>');
+                    // $errorTitle.text('Éxito').css('color', 'green').show(); // Title will be updated after Discord send attempt
+
+                    // Now send to Discord
+                    const player1Name = getElementValue('jugador-1-nombre');
+                    const player2Name = getElementValue('jugador-2-nombre');
+
+                    sendToDiscord(player1Result, player2Result, player1Name, player2Name)
+                        .then(() => {
+                            $errorList.append('<span>Datos enviados a Discord.</span>');
+                            $errorTitle.text('Éxito Completo').css('color', 'green').show();
+                        })
+                        .catch(() => {
+                            $errorList.append('<span>Error al enviar datos a Discord. La validación local fue exitosa.</span>');
+                            $errorTitle.text('Éxito Parcial').css('color', 'orange').show(); // Orange for partial success
+                        })
+                        .finally(() => {
+                             // Ensure the log section is visible
+                            if (!$logWrapper.find('.faq-cont .faq').hasClass('is-open')) {
+                                $logWrapper.find('.faq-cont .faq').show().addClass("is-open").closest('.faq-cont').find('.faq-a').slideDown(200);
+                            }
+                        });
+
                 } catch (e) {
                     console.error("Error saving to localStorage:", e);
                     $errorList.append(`<span>Error al guardar en localStorage: ${e.message}</span><br>`);
-                    // allErrors.push(`Error al guardar en localStorage: ${e.message}`); // Not needed to push here as we display immediately
-                    $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d').show(); // Set text and error color
+                    $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d').show();
                 }
             }
-            // Ensure the log section is visible if there's any message (error or success)
-            if ($errorList.children().length > 0) {
+            // Ensure the log section is visible if there's any message (error or success from validation part)
+            // This will be re-evaluated after Discord send attempt in the success case.
+            if ($errorList.children().length > 0 && allErrors.length > 0) { // Only show if initial validation had errors
                 if (!$logWrapper.find('.faq-cont .faq').hasClass('is-open')) {
                     $logWrapper.find('.faq-cont .faq').show().addClass("is-open").closest('.faq-cont').find('.faq-a').slideDown(200);
                 }
             }
 
-
         }).catch(error => {
             // This catch is for unexpected errors in Promise.all or validatePlayerDeck promise rejections
             // Individual card errors are handled within playerXResult.errors
             console.error("Critical error during validation process:", error);
-            $errorList.empty();
+            $errorList.empty(); // Clear previous messages before adding new critical error
             $errorList.append(`<span>Error crítico durante la validación: ${error.message || error}</span><br>`);
-            $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d').show();
+            $errorTitle.text('Oops! Error Crítico').css('color', '#f45d5d').show();
             if (!$logWrapper.find('.faq-cont .faq').hasClass('is-open')) {
                $logWrapper.find('.faq-cont .faq').show().addClass("is-open").closest('.faq-cont').find('.faq-a').slideDown(200);
            }
