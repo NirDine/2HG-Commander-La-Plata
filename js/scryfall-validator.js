@@ -1,6 +1,8 @@
 // This file will contain the JavaScript logic for Scryfall API interaction and deck validation.
 // It will use jQuery for DOM manipulation and AJAX requests.
 
+const ENABLE_ADVANCED_RULES = true; // Toggle for advanced deck validation rules
+
 $(document).ready(function() {
     // Helper function to get value from an input or textarea
     function getElementValue(elementId) {
@@ -238,6 +240,165 @@ $(document).ready(function() {
 
     const MAX_FIELD_VALUE_LENGTH = 1000; // Max characters for a Discord embed field value (safe under 1024)
 
+    function performAdvancedDeckValidation(player1Data, player2Data) {
+        const advancedErrors = [];
+        // All rule checks will go here
+
+        // Rule 1: Total 100 cards per deck
+        let p1DeckTotal = 0;
+        if (player1Data && player1Data.decklist) {
+            p1DeckTotal = player1Data.decklist.reduce((sum, card) => sum + card.quantity, 0);
+        }
+        if (player1Data && player1Data.commander && player1Data.commander.scryfall_data) { // Commander counts as 1 card if valid
+            p1DeckTotal += player1Data.commander.quantity; // Should be 1
+        }
+
+        let p2DeckTotal = 0;
+        if (player2Data && player2Data.decklist) {
+            p2DeckTotal = player2Data.decklist.reduce((sum, card) => sum + card.quantity, 0);
+        }
+        if (player2Data && player2Data.commander && player2Data.commander.scryfall_data) { // Commander counts as 1 card if valid
+            p2DeckTotal += player2Data.commander.quantity; // Should be 1
+        }
+
+        const deckSizeErrors = [];
+        if (p1DeckTotal !== 100 && player1Data && player1Data.commander && player1Data.commander.scryfall_data) { // Only apply if commander is valid enough to count
+            deckSizeErrors.push(`  - Jugador 1: Mazo tiene ${p1DeckTotal} cartas.`);
+        }
+        if (p2DeckTotal !== 100 && player2Data && player2Data.commander && player2Data.commander.scryfall_data) { // Only apply if commander is valid enough to count
+            deckSizeErrors.push(`  - Jugador 2: Mazo tiene ${p2DeckTotal} cartas.`);
+        }
+
+        if (deckSizeErrors.length > 0) {
+            advancedErrors.push("**Violación de Regla: Mazos no tienen 100 cartas**\n" + deckSizeErrors.join("\n"));
+        }
+
+        // Rule 2: Single color commanders
+        const commanderColorErrors = [];
+        if (player1Data && player1Data.commander && player1Data.commander.scryfall_data && player1Data.commander.scryfall_data.color_identity) {
+            if (player1Data.commander.scryfall_data.color_identity.length > 1) {
+                commanderColorErrors.push(`  - Comandante de Jugador 1 (${player1Data.commander.name}): Identidad de color es ${player1Data.commander.scryfall_data.color_identity.join('')}, debe ser monocolor.`);
+            }
+        }
+        if (player2Data && player2Data.commander && player2Data.commander.scryfall_data && player2Data.commander.scryfall_data.color_identity) {
+            if (player2Data.commander.scryfall_data.color_identity.length > 1) {
+                commanderColorErrors.push(`  - Comandante de Jugador 2 (${player2Data.commander.name}): Identidad de color es ${player2Data.commander.scryfall_data.color_identity.join('')}, debe ser monocolor.`);
+            }
+        }
+        if (commanderColorErrors.length > 0) {
+            advancedErrors.push("**Violación de Regla: Comandantes Multi-color**\n" + commanderColorErrors.join("\n"));
+        }
+
+        // Rule 3: No repeated non-land cards between decks
+        const p1NonLandCardNames = new Set();
+        if (player1Data && player1Data.decklist) {
+            player1Data.decklist.forEach(card => {
+                if (card.scryfall_data && card.scryfall_data.type_line && !card.scryfall_data.type_line.toLowerCase().includes('land')) {
+                    p1NonLandCardNames.add(card.name.toLowerCase()); // Normalize name for comparison
+                }
+            });
+        }
+
+        const repeatedCardErrors = [];
+        if (player2Data && player2Data.decklist) {
+            player2Data.decklist.forEach(card => {
+                if (card.scryfall_data && card.scryfall_data.type_line && !card.scryfall_data.type_line.toLowerCase().includes('land')) {
+                    if (p1NonLandCardNames.has(card.name.toLowerCase())) {
+                        repeatedCardErrors.push(`  - '${card.name}' repetida entre mazos.`);
+                        // To avoid reporting the same card multiple times if it's in P1's set and P2 has multiple copies (though our decklist structure is unique names with quantities)
+                        // or if we were checking P1 against P2's set after this. This simple one-way check is fine.
+                        // For truly unique error lines, we could add to a Set first, then format.
+                    }
+                }
+            });
+        }
+        if (repeatedCardErrors.length > 0) {
+             // To ensure unique error lines if a card name might appear in repeatedCardErrors due to case or other minor variations before normalization
+            const uniqueRepeatedCardErrorLines = [...new Set(repeatedCardErrors)];
+            advancedErrors.push("**Violación de Regla: Cartas no-tierra repetidas entre mazos**\n" + uniqueRepeatedCardErrorLines.join("\n"));
+        }
+
+        // Rule 4: Cards within combined commander color identity
+        const colorIdentityErrors = [];
+        let combinedCommanderColors = new Set();
+
+        if (player1Data && player1Data.commander && player1Data.commander.scryfall_data && player1Data.commander.scryfall_data.color_identity) {
+            player1Data.commander.scryfall_data.color_identity.forEach(color => combinedCommanderColors.add(color));
+        }
+        if (player2Data && player2Data.commander && player2Data.commander.scryfall_data && player2Data.commander.scryfall_data.color_identity) {
+            player2Data.commander.scryfall_data.color_identity.forEach(color => combinedCommanderColors.add(color));
+        }
+
+        // If either commander is missing or invalid, this rule might not be applicable or might give weird results.
+        // We proceed if we have at least one commander's color identity to form a basis.
+        // Or, if combinedCommanderColors is empty (e.g. both colorless commanders), then only colorless cards are allowed.
+
+        const combinedColorsString = Array.from(combinedCommanderColors).join('') || 'Colorless';
+
+        [player1Data, player2Data].forEach((playerData, playerIndex) => {
+            if (playerData && playerData.decklist) {
+                playerData.decklist.forEach(card => {
+                    if (card.scryfall_data && card.scryfall_data.color_identity) {
+                        const cardColors = card.scryfall_data.color_identity;
+                        let isAllowed = true;
+
+                        if (cardColors.length > 0) { // Card has colors
+                            if (combinedCommanderColors.size === 0) { // Commanders are colorless, card has colors
+                                isAllowed = false;
+                            } else { // Card has colors, commanders have colors
+                                for (const color of cardColors) {
+                                    if (!combinedCommanderColors.has(color)) {
+                                        isAllowed = false;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        // If card is colorless (cardColors.length === 0), it's allowed by this rule.
+
+                        if (!isAllowed) {
+                            colorIdentityErrors.push(`  - Jugador ${playerIndex + 1} - Carta '${card.name}' (Identidad: ${cardColors.join('') || 'Colorless'}) está fuera de la identidad combinada de los comandantes (${combinedColorsString}).`);
+                        }
+                    }
+                });
+            }
+        });
+
+        if (colorIdentityErrors.length > 0) {
+            advancedErrors.push("**Violación de Regla: Cartas fuera de la identidad de color combinada**\n" + colorIdentityErrors.join("\n"));
+        }
+
+        // Rule 5: Max 3 "Game Changers" per deck
+        const gameChangerErrors = [];
+        [player1Data, player2Data].forEach((playerData, playerIndex) => {
+            if (playerData && playerData.decklist) {
+                const gameChangerCardsInDeck = [];
+                let gameChangerCount = 0;
+                playerData.decklist.forEach(card => {
+                    if (card.scryfall_data && card.scryfall_data.game_changer === true) {
+                        gameChangerCount++;
+                        gameChangerCardsInDeck.push(card.name);
+                    }
+                });
+                // Also check commander
+                if (playerData.commander && playerData.commander.scryfall_data && playerData.commander.scryfall_data.game_changer === true) {
+                    gameChangerCount++;
+                    gameChangerCardsInDeck.push(`${playerData.commander.name} (Comandante)`);
+                }
+
+                if (gameChangerCount > 3) {
+                    gameChangerErrors.push(`  - Jugador ${playerIndex + 1}: Tiene ${gameChangerCount} Game Changers (Máx. 3).\n    - Cartas: ${gameChangerCardsInDeck.join(', ')}`);
+                }
+            }
+        });
+
+        if (gameChangerErrors.length > 0) {
+            advancedErrors.push("**Violación de Regla: Demasiados Game Changers**\n" + gameChangerErrors.join("\n"));
+        }
+
+        return advancedErrors;
+    }
+
     function generateDecklistFields(decklist, baseFieldName) {
         const fields = [];
         let totalQuantity = 0;
@@ -446,12 +607,34 @@ $(document).ready(function() {
             // The next step will handle localStorage and detailed error display.
             // For now, just log and prepare for error display structure.
 
+            if (ENABLE_ADVANCED_RULES) {
+                if (player1Result && player1Result.commander && player1Result.commander.scryfall_data &&
+                    player2Result && player2Result.commander && player2Result.commander.scryfall_data) {
+                    // Only run advanced rules if both commanders are validly fetched from Scryfall,
+                    // as some rules depend on commander data.
+                    // Individual card errors within playerXResult.errors are already handled by Scryfall validation.
+                    const advancedRuleErrors = performAdvancedDeckValidation(player1Result, player2Result);
+                    if (advancedRuleErrors.length > 0) {
+                        // Add a general header for advanced rule violations if there isn't one from Scryfall
+                        // allErrors.push("**Advanced Rule Violations:**"); // This might be too generic. The function itself adds specific headers.
+                        advancedRuleErrors.forEach(advErr => allErrors.push(advErr)); // Add each error individually
+                    }
+                } else {
+                    allErrors.push("No se pudieron ejecutar las reglas avanzadas porque la información de uno o ambos comandantes no está disponible.");
+                }
+            }
+
+
             const originalErrorTitleColor = $errorTitle.css('color'); // Store original color
             $errorList.empty(); // Clear previous messages
 
             if (allErrors.length > 0) {
                 console.warn("Validation found errors:", allErrors);
-                allErrors.forEach(err => $errorList.append(`<span>${err}</span><br>`));
+                allErrors.forEach(err => {
+                    let formattedError = err.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold text between **
+                    formattedError = formattedError.replace(/\n/g, '<br>'); // Newlines to <br>
+                    $errorList.append(`<div>${formattedError}</div>`); // Use div for block display of each error group
+                });
                 $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d').show(); // Set text and error color
 
                 localStorage.removeItem('validatedDecks'); // Clear any outdated valid data
