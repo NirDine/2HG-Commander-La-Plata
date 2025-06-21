@@ -13,7 +13,7 @@ $(document).ready(function() {
         if (!listString) {
             return [];
         }
-        const lines = listString.split('\\n');
+        const lines = listString.split(/\r?\n/); // Use regex for robust line splitting
         const nonEmptyLines = lines.filter(line => line.trim() !== '');
         const cardNames = {}; // Object to store card names and quantities
 
@@ -108,6 +108,9 @@ $(document).ready(function() {
                             setTimeout(makeScryfallRequest, 110); // Scryfall API rate limit recommendation (100ms, add a bit buffer)
                         } else {
                             // All requests completed
+                            // console.log('DEBUG: Final Scryfall Data (found):', JSON.stringify(scryfallResponseData, null, 2));
+                            // console.log('DEBUG: Final Scryfall Data (not_found):', JSON.stringify(accumulatedNotFound, null, 2));
+                            // console.log('DEBUG: Original input cards for processing:', JSON.stringify(allCardsToFetch, null, 2));
                             const finalValidatedCards = processScryfallResults(scryfallResponseData, accumulatedNotFound, allCardsToFetch);
                             resolve(finalValidatedCards);
                         }
