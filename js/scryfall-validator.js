@@ -224,9 +224,12 @@ $(document).ready(function() {
         console.log("P1 Data:", player1Data, "P1 Name:", player1Name);
         console.log("P2 Data:", player2Data, "P2 Name:", player2Name);
 
+        const threadTitle = `${player1Name || 'Jugador 1'} & ${player2Name || 'Jugador 2'} - Team submission`;
+
         const payload = {
             username: "2HG Deck Registration Bot",
             avatar_url: "", // Optional: Add a URL to an image for the bot's avatar
+            thread_name: threadTitle, // Moved thread_name into the payload
             embeds: []
         };
 
@@ -316,12 +319,12 @@ $(document).ready(function() {
             return Promise.resolve(); // Nothing to send
         }
 
-        const threadTitle = `${player1Name || 'Jugador 1'} & ${player2Name || 'Jugador 2'} - Team submission`;
-        const webhookUrlWithThread = `${DISCORD_WEBHOOK_URL}?thread_name=${encodeURIComponent(threadTitle)}`;
+        // const threadTitle = `${player1Name || 'Jugador 1'} & ${player2Name || 'Jugador 2'} - Team submission`; // Already defined above in payload
+        // const webhookUrlWithThread = `${DISCORD_WEBHOOK_URL}?thread_name=${encodeURIComponent(threadTitle)}`; // No longer needed
 
         return $.ajax({
             type: 'POST',
-            url: webhookUrlWithThread,
+            url: DISCORD_WEBHOOK_URL, // Use base URL
             contentType: 'application/json',
             data: JSON.stringify(payload),
             success: function() {
