@@ -635,7 +635,12 @@ $(document).ready(function() {
                     formattedError = formattedError.replace(/\n/g, '<br>'); // Newlines to <br>
                     $errorList.append(`<div>${formattedError}</div>`); // Use div for block display of each error group
                 });
-                $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d').show(); // Set text and error color
+                const $errorTitleSvg = $errorTitle.find('svg.faq-icon').detach();
+                $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d');
+                if ($errorTitleSvg.length) {
+                    $errorTitle.append($errorTitleSvg);
+                }
+                $errorTitle.show();
 
                 localStorage.removeItem('validatedDecks'); // Clear any outdated valid data
             } else {
@@ -657,11 +662,17 @@ $(document).ready(function() {
                     sendToDiscord(player1Result, player2Result, player1Name, player2Name)
                         .then(() => {
                             $errorList.append('<span>Datos enviados a Discord.</span>');
-                            $errorTitle.text('Éxito Completo').css('color', 'green').show();
+                            const $errorTitleSvg = $errorTitle.find('svg.faq-icon').detach();
+                            $errorTitle.text('Éxito Completo').css('color', 'green');
+                            if ($errorTitleSvg.length) { $errorTitle.append($errorTitleSvg); }
+                            $errorTitle.show();
                         })
                         .catch(() => {
                             $errorList.append('<span>Error al enviar datos a Discord. La validación local fue exitosa.</span>');
-                            $errorTitle.text('Éxito Parcial').css('color', 'orange').show(); // Orange for partial success
+                            const $errorTitleSvg = $errorTitle.find('svg.faq-icon').detach();
+                            $errorTitle.text('Éxito Parcial').css('color', 'orange');
+                            if ($errorTitleSvg.length) { $errorTitle.append($errorTitleSvg); }
+                            $errorTitle.show(); // Orange for partial success
                         })
                         .always(() => { // Changed from .finally to .always
                              // Ensure the log section is visible
@@ -673,7 +684,10 @@ $(document).ready(function() {
                 } catch (e) {
                     console.error("Error saving to localStorage:", e);
                     $errorList.append(`<span>Error al guardar en localStorage: ${e.message}</span><br>`);
-                    $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d').show();
+                    const $errorTitleSvg = $errorTitle.find('svg.faq-icon').detach();
+                    $errorTitle.text('Oops! Hay algunos errores').css('color', '#f45d5d');
+                    if ($errorTitleSvg.length) { $errorTitle.append($errorTitleSvg); }
+                    $errorTitle.show();
                 }
             }
             // Ensure the log section is visible if there's any message (error or success from validation part)
@@ -690,7 +704,10 @@ $(document).ready(function() {
             console.error("Critical error during validation process:", error);
             $errorList.empty(); // Clear previous messages before adding new critical error
             $errorList.append(`<span>Error crítico durante la validación: ${error.message || error}</span><br>`);
-            $errorTitle.text('Oops! Error Crítico').css('color', '#f45d5d').show();
+            const $errorTitleSvg = $errorTitle.find('svg.faq-icon').detach();
+            $errorTitle.text('Oops! Error Crítico').css('color', '#f45d5d');
+            if ($errorTitleSvg.length) { $errorTitle.append($errorTitleSvg); }
+            $errorTitle.show();
             if (!$logWrapper.find('.faq-cont .faq').hasClass('is-open')) {
                $logWrapper.find('.faq-cont .faq').show().addClass("is-open").closest('.faq-cont').find('.faq-a').slideDown(200);
            }
