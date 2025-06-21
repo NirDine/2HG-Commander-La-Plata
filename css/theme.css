@@ -48,7 +48,7 @@ h4 {
     --bgcontrast: #64d97b;
     --primarycontrast: #64d97b;
     --secondarycontrast: #ffdd00;
-    --accentcontrast: #ff8f8f;
+    --accentcontrast: #8fff9e;
     --accentdark: #1d8094;
     --text5: hsl(34, 6%, 24%, 5%);
     --text10: hsl(34, 6%, 24%, 10%);
@@ -108,24 +108,24 @@ h4 {
     --secondary90: hsl(39, 16%, 76%, 90%);
     --secondary95: hsl(39, 16%, 76%, 95%);
     --accent5: hsl(17, 83%, 54%, 5%);
-    --accent10: hsl(17, 83%, 54%, 10%);
-    --accent15: hsl(17, 83%, 54%, 15%);
-    --accent20: hsl(17, 83%, 54%, 20%);
-    --accent25: hsl(17, 83%, 54%, 25%);
-    --accent30: hsl(17, 83%, 54%, 30%);
-    --accent35: hsl(17, 83%, 54%, 35%);
-    --accent40: hsl(17, 83%, 54%, 40%);
-    --accent45: hsl(17, 83%, 54%, 45%);
-    --accent50: hsl(17, 83%, 54%, 50%);
-    --accent55: hsl(17, 83%, 54%, 55%);
-    --accent60: hsl(17, 83%, 54%, 60%);
-    --accent65: hsl(17, 83%, 54%, 65%);
-    --accent70: hsl(17, 83%, 54%, 70%);
-    --accent75: hsl(17, 83%, 54%, 75%);
-    --accent80: hsl(17, 83%, 54%, 80%);
-    --accent85: hsl(17, 83%, 54%, 85%);
-    --accent90: hsl(17, 83%, 54%, 90%);
-    --accent95: hsl(17, 83%, 54%, 95%);
+    --accent10: hsl(164deg 83% 54% / 10%);
+    --accent15: hsl(164deg 83% 54% / 15%);
+    --accent20: hsl(164deg 83% 54% / 20%);
+    --accent25: hsl(164deg 83% 54% / 25%);
+    --accent30: hsl(164deg 83% 54% / 30%);
+    --accent35: hsl(164deg 83% 54% / 35%);
+    --accent40: hsl(164deg 83% 54% / 40%);
+    --accent45: hsl(164deg 83% 54% / 45%);
+    --accent50: hsl(164deg 83% 54% / 50%);
+    --accent55: hsl(164deg 83% 54% / 55%);
+    --accent60: hsl(164deg 83% 54% / 60%);
+    --accent65: hsl(164deg 83% 54% / 65%);
+    --accent70: hsl(164deg 83% 54% / 70%);
+    --accent75: hsl(164deg 83% 54% / 75%);
+    --accent80: hsl(164deg 83% 54% / 80%);
+    --accent85: hsl(164deg 83% 54% / 85%);
+    --accent90: hsl(164deg 83% 54% / 90%);
+    --accent95: hsl(164deg 83% 54% / 95%);
 
     --nirdine: #676FA3;
     
@@ -188,7 +188,9 @@ input[type=submit] {
 .searchButton:hover,
 .searchButton:focus-visible,
 header ul img:hover,
-header ul a:focus-visible img {
+header ul a:focus-visible img,
+input[type="submit"]:hover,
+input[type="submit"]:focus-visible{
     filter: brightness(1.2);
 }
 
