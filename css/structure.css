@@ -751,6 +751,11 @@ footer .copyright {
     :root {
         --p: 0.8rem;
     }
+    
+        #register .form-inner-container {
+        flex-direction: column;
+    }
+    
 }
 
 @media screen and (max-width: 1000px) {
@@ -788,6 +793,9 @@ footer .copyright {
         overflow: visible !important;
     }
 
+    #register .form-inner-container {
+        flex-direction: column;
+    }
 }
 
 @media screen and (max-width: 1000px) {
