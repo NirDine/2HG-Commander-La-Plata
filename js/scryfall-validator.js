@@ -240,14 +240,18 @@ $(document).ready(function() {
 
     function generateDecklistFields(decklist, baseFieldName) {
         const fields = [];
+        let totalQuantity = 0;
+
         if (!decklist || decklist.length === 0) {
-            fields.push({ name: baseFieldName, value: 'Ninguna carta en el mazo.', inline: false });
+            fields.push({ name: `${baseFieldName} (0 cartas)`, value: 'Ninguna carta en el mazo.', inline: false });
             return fields;
         }
 
+        totalQuantity = decklist.reduce((sum, card) => sum + card.quantity, 0);
+
         let currentFieldValue = "";
         let partCounter = 0;
-        const initialFieldName = `${baseFieldName} (${decklist.length} cartas)`;
+        const initialFieldName = `${baseFieldName} (${totalQuantity} cartas)`;
 
         decklist.forEach((card, index) => {
             const cardLine = `${card.quantity}x ${card.name}\n`;
