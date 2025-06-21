@@ -237,37 +237,44 @@ $(document).ready(function() {
         if (player1Data && player1Data.commander) {
             const p1Embed = {
                 title: `Jugador 1: ${player1Name || 'Nombre no ingresado'}`,
-                color: player1Data.errors && player1Data.errors.length > 0 ? 15158332 : 3066993, // Red for errors, Green for success (approx)
+                // color will be set later based on validation errors
                 fields: [
+                    { name: '-------------------------', value: '\u200B', inline: false },
                     {
                         name: "Comandante",
-                        value: player1Data.commander.name + (player1Data.commander.is_legal ? " (Legal)" : " (ILEGAL / NO ENCONTRADO)"),
+                        value: player1Data.commander.name, // Legal status removed, color indicates it
                         inline: false
                     },
+                    { name: '-------------------------', value: '\u200B', inline: false },
                     {
-                        name: "Mazo",
-                        value: `${player1Data.decklist ? player1Data.decklist.length : 0} cartas. ${
-                            player1Data.decklist && player1Data.decklist.length > 0 ?
-                            `Primeras cartas: \\n${player1Data.decklist.slice(0, 5).map(c => `${c.quantity}x ${c.name}`).join('\\n')}` : ''
-                        }`,
+                        name: `Mazo (${player1Data.decklist ? player1Data.decklist.length : 0} cartas)`,
+                        value: player1Data.decklist && player1Data.decklist.length > 0 ?
+                               player1Data.decklist.slice(0, 5).map(c => `${c.quantity}x ${c.name}`).join('\n') :
+                               'Ninguna carta en el mazo.',
                         inline: false
                     }
                 ]
             };
-             // Add player-specific errors to their embed
+
             const player1ValidationErrors = [];
-            if (player1Data.commander && player1Data.commander.error) player1ValidationErrors.push(`Comandante: ${player1Data.commander.error}`);
-            player1Data.decklist.forEach(card => { if (card.error) player1ValidationErrors.push(card.error); });
+            if (player1Data.commander && player1Data.commander.error) {
+                player1ValidationErrors.push(`Comandante: ${player1Data.commander.error}`);
+            } else if (player1Data.commander && !player1Data.commander.is_legal) {
+                // Add a generic error if commander is marked illegal but no specific error message was present
+                player1ValidationErrors.push(`Comandante: '${player1Data.commander.name}' es ILEGAL o NO ENCONTRADO.`);
+            }
+
+            player1Data.decklist.forEach(card => {
+                if (card.error) player1ValidationErrors.push(card.error);
+            });
 
             if (player1ValidationErrors.length > 0) {
                 p1Embed.fields.push({
                     name: "Errores de Validación P1",
-                    value: player1ValidationErrors.join('\\n').substring(0, 1020), // Discord field value limit
+                    value: player1ValidationErrors.join('\n').substring(0, 1020), // Discord field value limit
                     inline: false
                 });
-                 p1Embed.color = 15158332; // Red
-            } else if (player1Data.commander && player1Data.commander.is_legal === false) {
-                 p1Embed.color = 15158332; // Red if commander is illegal, even if no other errors
+                p1Embed.color = 15158332; // Red
             } else {
                 p1Embed.color = 3066993; // Green
             }
@@ -280,33 +287,39 @@ $(document).ready(function() {
                 title: `Jugador 2: ${player2Name || 'Nombre no ingresado'}`,
                 // color will be set below based on errors
                 fields: [
+                     { name: '-------------------------', value: '\u200B', inline: false },
                     {
                         name: "Comandante",
-                        value: player2Data.commander.name + (player2Data.commander.is_legal ? " (Legal)" : " (ILEGAL / NO ENCONTRADO)"),
+                        value: player2Data.commander.name, // Legal status removed
                         inline: false
                     },
+                    { name: '-------------------------', value: '\u200B', inline: false },
                     {
-                        name: "Mazo",
-                        value: `${player2Data.decklist ? player2Data.decklist.length : 0} cartas. ${
-                            player2Data.decklist && player2Data.decklist.length > 0 ?
-                            `Primeras cartas: \\n${player2Data.decklist.slice(0,5).map(c => `${c.quantity}x ${c.name}`).join('\\n')}`: ''
-                        }`,
+                        name: `Mazo (${player2Data.decklist ? player2Data.decklist.length : 0} cartas)`,
+                        value: player2Data.decklist && player2Data.decklist.length > 0 ?
+                               player2Data.decklist.slice(0, 5).map(c => `${c.quantity}x ${c.name}`).join('\n') :
+                               'Ninguna carta en el mazo.',
                         inline: false
                     }
                 ]
             };
             const player2ValidationErrors = [];
-            if (player2Data.commander && player2Data.commander.error) player2ValidationErrors.push(`Comandante: ${player2Data.commander.error}`);
-            player2Data.decklist.forEach(card => { if (card.error) player2ValidationErrors.push(card.error); });
+            if (player2Data.commander && player2Data.commander.error) {
+                player2ValidationErrors.push(`Comandante: ${player2Data.commander.error}`);
+            } else if (player2Data.commander && !player2Data.commander.is_legal) {
+                 player2ValidationErrors.push(`Comandante: '${player2Data.commander.name}' es ILEGAL o NO ENCONTRADO.`);
+            }
+
+            player2Data.decklist.forEach(card => {
+                if (card.error) player2ValidationErrors.push(card.error);
+            });
 
             if (player2ValidationErrors.length > 0) {
                 p2Embed.fields.push({
                     name: "Errores de Validación P2",
-                    value: player2ValidationErrors.join('\\n').substring(0,1020),
+                    value: player2ValidationErrors.join('\n').substring(0,1020),
                     inline: false
                 });
-                p2Embed.color = 15158332; // Red
-            } else if (player2Data.commander && player2Data.commander.is_legal === false) {
                 p2Embed.color = 15158332; // Red
             } else {
                 p2Embed.color = 3066993; // Green
