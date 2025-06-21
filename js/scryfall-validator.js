@@ -316,9 +316,12 @@ $(document).ready(function() {
             return Promise.resolve(); // Nothing to send
         }
 
+        const threadTitle = `${player1Name || 'Jugador 1'} & ${player2Name || 'Jugador 2'} - Team submission`;
+        const webhookUrlWithThread = `${DISCORD_WEBHOOK_URL}?thread_name=${encodeURIComponent(threadTitle)}`;
+
         return $.ajax({
             type: 'POST',
-            url: DISCORD_WEBHOOK_URL,
+            url: webhookUrlWithThread,
             contentType: 'application/json',
             data: JSON.stringify(payload),
             success: function() {
