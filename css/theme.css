@@ -241,3 +241,21 @@ foooter:focus-within {
 #progress {
   background-image: linear-gradient(120deg, var(--accent) 0%, var(--accentdark) 100%);
 }
+
+/* Submit button loading animation */
+.send-deck.loading-active {
+    background-image: linear-gradient(to right, var(--accentdark) 50%, var(--accent) 50%);
+    background-size: 200% 100%;
+    background-position: 100% 0; /* Start with the 'unfilled' color taking up the space */
+    animation: fillButton 1.5s linear forwards; /* 'forwards' keeps the state at 100% */
+    color: var(--background); /* Ensure text remains readable */
+}
+
+@keyframes fillButton {
+    0% {
+        background-position: 100% 0;
+    }
+    100% {
+        background-position: 0% 0;
+    }
+}
