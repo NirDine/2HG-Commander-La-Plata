@@ -2,6 +2,8 @@
 // It will use jQuery for DOM manipulation and AJAX requests.
 
 const ENABLE_ADVANCED_RULES = true; // Toggle for advanced deck validation rules
+let dotAnimationInterval = null;
+let originalButtonText = '';
 
 $(document).ready(function() {
     // Helper function to get value from an input or textarea
@@ -575,7 +577,21 @@ $(document).ready(function() {
         }
         requestInProgress = true;
         const $submitButton = $(this);
-        $submitButton.prop('disabled', true).val('Analizando...');
+        originalButtonText = $submitButton.val(); // Store original text
+        $submitButton.prop('disabled', true).addClass('loading-active');
+
+        let dotCount = 0;
+        $submitButton.val('Analizando'); // Initial text before dots
+        if (dotAnimationInterval) clearInterval(dotAnimationInterval); // Clear any existing interval
+        dotAnimationInterval = setInterval(() => {
+            dotCount = (dotCount + 1) % 4; // Cycle 0, 1, 2, 3
+            let dots = '';
+            for (let i = 0; i < dotCount; i++) {
+                dots += '.';
+            }
+            $submitButton.val('Analizando' + dots);
+        }, 500);
+
 
         // Clear previous errors from the log display
         const $logWrapper = $('.log-wrapper');
@@ -711,9 +727,11 @@ $(document).ready(function() {
             if (!$logWrapper.find('.faq-cont .faq').hasClass('is-open')) {
                $logWrapper.find('.faq-cont .faq').show().addClass("is-open").closest('.faq-cont').find('.faq-a').slideDown(200);
            }
-        }).finally(() => {
+        }).finally(() => { // jQuery's .always() is used here, but .finally() is the modern Promise standard
             requestInProgress = false;
-            $submitButton.prop('disabled', false).val('Analizar listas y enviar');
+            clearInterval(dotAnimationInterval);
+            dotAnimationInterval = null;
+            $submitButton.removeClass('loading-active').prop('disabled', false).val(originalButtonText);
         });
     });
 
