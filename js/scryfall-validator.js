@@ -219,6 +219,45 @@ $(document).ready(function() {
 
     const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1386069620556828874/cWcs23AdzHSkhHSKhtn8j5T8sYqH9-k4Ju2NKh0rDeYk6gqJ7y35R4uMZbZ2DtWQps9B';
 
+    const MAX_FIELD_VALUE_LENGTH = 1000; // Max characters for a Discord embed field value (safe under 1024)
+
+    function generateDecklistFields(decklist, baseFieldName) {
+        const fields = [];
+        if (!decklist || decklist.length === 0) {
+            fields.push({ name: baseFieldName, value: 'Ninguna carta en el mazo.', inline: false });
+            return fields;
+        }
+
+        let currentFieldValue = "";
+        let partCounter = 0;
+        const initialFieldName = `${baseFieldName} (${decklist.length} cartas)`;
+
+        decklist.forEach((card, index) => {
+            const cardLine = `${card.quantity}x ${card.name}\n`;
+            if (currentFieldValue.length + cardLine.length > MAX_FIELD_VALUE_LENGTH) {
+                // Add current field before it gets too long
+                fields.push({
+                    name: partCounter === 0 ? initialFieldName : `${initialFieldName} (Cont. ${partCounter})`,
+                    value: currentFieldValue.trim(), // Trim trailing newline if any
+                    inline: false
+                });
+                currentFieldValue = ""; // Reset for next part
+                partCounter++;
+            }
+            currentFieldValue += cardLine;
+        });
+
+        // Add the last remaining part
+        if (currentFieldValue.length > 0) {
+            fields.push({
+                name: partCounter === 0 ? initialFieldName : `${initialFieldName} (Cont. ${partCounter})`,
+                value: currentFieldValue.trim(),
+                inline: false
+            });
+        }
+        return fields;
+    }
+
     function sendToDiscord(player1Data, player2Data, player1Name, player2Name) {
         console.log("Attempting to send to Discord...");
         console.log("P1 Data:", player1Data, "P1 Name:", player1Name);
@@ -245,16 +284,13 @@ $(document).ready(function() {
                         value: player1Data.commander.name, // Legal status removed, color indicates it
                         inline: false
                     },
-                    { name: '-------------------------', value: '\u200B', inline: false },
-                    {
-                        name: `Mazo (${player1Data.decklist ? player1Data.decklist.length : 0} cartas)`,
-                        value: player1Data.decklist && player1Data.decklist.length > 0 ?
-                               player1Data.decklist.slice(0, 5).map(c => `${c.quantity}x ${c.name}`).join('\n') :
-                               'Ninguna carta en el mazo.',
-                        inline: false
-                    }
+                    { name: '-------------------------', value: '\u200B', inline: false }
+                    // Decklist fields will be added below by generateDecklistFields
                 ]
             };
+
+            const p1DecklistFields = generateDecklistFields(player1Data.decklist, "Mazo");
+            p1Embed.fields.push(...p1DecklistFields);
 
             const player1ValidationErrors = [];
             if (player1Data.commander && player1Data.commander.error) {
@@ -293,16 +329,13 @@ $(document).ready(function() {
                         value: player2Data.commander.name, // Legal status removed
                         inline: false
                     },
-                    { name: '-------------------------', value: '\u200B', inline: false },
-                    {
-                        name: `Mazo (${player2Data.decklist ? player2Data.decklist.length : 0} cartas)`,
-                        value: player2Data.decklist && player2Data.decklist.length > 0 ?
-                               player2Data.decklist.slice(0, 5).map(c => `${c.quantity}x ${c.name}`).join('\n') :
-                               'Ninguna carta en el mazo.',
-                        inline: false
-                    }
+                    { name: '-------------------------', value: '\u200B', inline: false }
+                    // Decklist fields will be added below by generateDecklistFields
                 ]
             };
+            const p2DecklistFields = generateDecklistFields(player2Data.decklist, "Mazo");
+            p2Embed.fields.push(...p2DecklistFields);
+
             const player2ValidationErrors = [];
             if (player2Data.commander && player2Data.commander.error) {
                 player2ValidationErrors.push(`Comandante: ${player2Data.commander.error}`);
