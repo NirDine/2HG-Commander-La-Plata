@@ -407,7 +407,7 @@ $(document).ready(function() {
                             $errorList.append('<span>Error al enviar datos a Discord. La validación local fue exitosa.</span>');
                             $errorTitle.text('Éxito Parcial').css('color', 'orange').show(); // Orange for partial success
                         })
-                        .finally(() => {
+                        .always(() => { // Changed from .finally to .always
                              // Ensure the log section is visible
                             if (!$logWrapper.find('.faq-cont .faq').hasClass('is-open')) {
                                 $logWrapper.find('.faq-cont .faq').show().addClass("is-open").closest('.faq-cont').find('.faq-a').slideDown(200);
