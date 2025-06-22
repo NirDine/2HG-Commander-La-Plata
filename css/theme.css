@@ -129,7 +129,7 @@ h4 {
 
     --nirdine: #676FA3;
     
-    --bg-art: url(/img/art/bg.png);
+    --bg-art: url(../img/art/bg2.png);
     --discord: #5865f2;
     --patreon: #ff424d;
 
@@ -152,13 +152,14 @@ body::before {
     top: 0px;
     width: 100%;
     z-index: -1;
-    background-image: url(../img/art/bg2.webp);
-    background-attachment: fixed;
-    background-position: center;
-    background-size: cover;
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgb(2, 5, 11)), var(--bg-art);
+    background-color: #808080;
+    background-position: top;
     background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: cover;
     filter: blur(1px);
-    opacity: 0.15;
+
 }
 
 
