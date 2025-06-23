@@ -208,6 +208,7 @@ textarea {
     color: var(--primary);
 }
 
+body,
 p,
 span,
 .hero-scroll,

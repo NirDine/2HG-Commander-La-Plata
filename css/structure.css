@@ -154,6 +154,7 @@ button {
     height: 100vh;
     padding: var(--margin-lg);
     width: auto !important;
+
     position: relative;
     line-height: 1.75;
 }
@@ -339,7 +340,7 @@ main {
 .cardHolder {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
 }
 
@@ -534,6 +535,10 @@ main {
     border-radius: 0 0 var(--border05) var(--border05)
 }
 
+
+.faq-cont .faq-cont {
+    margin-bottom: 1em;
+}
 .faq-icon {
     transform: rotate(0);
     transition: all ease-in-out .2s;
@@ -556,7 +561,7 @@ main {
     flex-direction: column;
     padding: 3em 5em;
     gap: 2em;
-
+    width: 100%;
 }
 
 .dwn-wrapper {
@@ -574,6 +579,7 @@ main {
 }
 
 .register-box-right {
+    flex-direction: column;
     justify-content: flex-start;
 }
 
@@ -640,6 +646,10 @@ main {
     display: flex;
     flex-direction: column;
     gap: 1em;
+}
+
+#register .form-container {
+    width: 100%;
 }
 
 #register .send-deck {
@@ -744,6 +754,10 @@ footer .copyright {
 @media screen and (max-width: 1500px) {
     .content-wrapper {
         margin: var(--margin-lg);
+    }
+
+    #register .form-inner-container {
+        flex-direction: column;
     }
 }
 
