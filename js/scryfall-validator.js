@@ -10,27 +10,26 @@ let originalButtonText = '';
 
 // ADDED: Function to control registration form and message visibility
 function setupRegistrationFormVisibility() {
-    var registrationFormContainer = $('#registrationFormContainer'); // Using jQuery selector
-    var registrationClosedMessage = $('#registrationClosedMessage'); // Using jQuery selector
-    // Not selecting title and text for now, as per previous logic, but they could be added here if needed.
-    // var registerSectionTitle = $('#register h2');
-    // var registerSectionText = $('#register .dwn-wrapper p');
-    // var registerSectionSubtext = $('#register .dwn-wrapper div p');
+    var registrationFormContainer = $('#registrationFormContainer');
+    var registrationClosedMessage = $('#register #registrationClosedMessageContent'); // UPDATED selector
+    var registerWrapperParagraphs = $('#register .dwn-wrapper p'); // ADDED selector for paragraphs
 
     if (isRegistrationFull) {
-        if (registrationFormContainer.length) { // Check if element exists
+        if (registrationFormContainer.length) {
             registrationFormContainer.hide();
         }
-        if (registrationClosedMessage.length) { // Check if element exists
+        if (registerWrapperParagraphs.length) { // ADDED logic to hide paragraphs
+            registerWrapperParagraphs.hide();
+        }
+        if (registrationClosedMessage.length) {
             registrationClosedMessage.show();
         }
-        // Optionally hide other elements like title or descriptive text
-        // if (registerSectionTitle.length) registerSectionTitle.hide();
-        // if (registerSectionText.length) registerSectionText.hide();
-        // if (registerSectionSubtext.length) registerSectionSubtext.hide();
     } else {
         if (registrationFormContainer.length) {
             registrationFormContainer.show();
+        }
+        if (registerWrapperParagraphs.length) { // ADDED logic to show paragraphs
+            registerWrapperParagraphs.show();
         }
         if (registrationClosedMessage.length) {
             registrationClosedMessage.hide();

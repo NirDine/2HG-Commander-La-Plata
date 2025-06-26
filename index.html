@@ -730,6 +730,10 @@
               <p>Recuerden que los proxies están permitidos, pero que deben ser a impresiones a color y legibles.</p>
             </div>
           </div>
+          <!-- ADDED: Container for the 'Cupo lleno' message, moved inside #register section -->
+          <div id="registrationClosedMessageContent" style="display: none; text-align: center; padding: 20px 0;">
+            <h2>¡Cupo lleno! Nos vemos en el próximo torneo</h2>
+          </div>
           <div class="form-container" id="registrationFormContainer">
             <form action="POST">
               <div class="form-inner-container">
@@ -863,9 +867,7 @@
           </div>
           <a class="form-help-link" href="mailto:hi@nirdine.com">Tengo un problema!</a>
         </section>
-        <section id="registrationClosedMessage" style="display: none; text-align: center; padding: 50px;">
-          <h2>¡Cupo lleno! Nos vemos en el próximo torneo</h2>
-        </section>
+        <!-- REMOVED: Separate section for registrationClosedMessage as it's now inside #register -->
 
         <!-- REMOVED: Logic to show/hide form, moved to js/scryfall-validator.js -->
 
