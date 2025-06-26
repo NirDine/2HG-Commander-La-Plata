@@ -22,6 +22,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon//apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="CommanderDuo" />
     <link rel="manifest" href="img/favicon//site.webmanifest" />
+    <!-- REMOVED: isRegistrationFull variable, moved to js/scryfall-validator.js -->
   </head>
   <body>
     <div id="progress"></div>
@@ -729,7 +730,7 @@
               <p>Recuerden que los proxies están permitidos, pero que deben ser a impresiones a color y legibles.</p>
             </div>
           </div>
-          <div class="form-container">
+          <div class="form-container" id="registrationFormContainer">
             <form action="POST">
               <div class="form-inner-container">
                 <div class="left-form">
@@ -862,6 +863,11 @@
           </div>
           <a class="form-help-link" href="mailto:hi@nirdine.com">Tengo un problema!</a>
         </section>
+        <section id="registrationClosedMessage" style="display: none; text-align: center; padding: 50px;">
+          <h2>¡Cupo lleno! Nos vemos en el próximo torneo</h2>
+        </section>
+
+        <!-- REMOVED: Logic to show/hide form, moved to js/scryfall-validator.js -->
 
         <div class="footer element" id="footer" style="margin-bottom: 0px">
           <div class="footer-cols">

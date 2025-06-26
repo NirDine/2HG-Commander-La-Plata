@@ -1,11 +1,46 @@
 // This file will contain the JavaScript logic for Scryfall API interaction and deck validation.
 // It will use jQuery for DOM manipulation and AJAX requests.
 
+// ADDED: Variable to control registration form visibility
+const isRegistrationFull = false; // Set to true to close registration
+
 const ENABLE_ADVANCED_RULES = true; // Toggle for advanced deck validation rules
 let dotAnimationInterval = null;
 let originalButtonText = '';
 
+// ADDED: Function to control registration form and message visibility
+function setupRegistrationFormVisibility() {
+    var registrationFormContainer = $('#registrationFormContainer'); // Using jQuery selector
+    var registrationClosedMessage = $('#registrationClosedMessage'); // Using jQuery selector
+    // Not selecting title and text for now, as per previous logic, but they could be added here if needed.
+    // var registerSectionTitle = $('#register h2');
+    // var registerSectionText = $('#register .dwn-wrapper p');
+    // var registerSectionSubtext = $('#register .dwn-wrapper div p');
+
+    if (isRegistrationFull) {
+        if (registrationFormContainer.length) { // Check if element exists
+            registrationFormContainer.hide();
+        }
+        if (registrationClosedMessage.length) { // Check if element exists
+            registrationClosedMessage.show();
+        }
+        // Optionally hide other elements like title or descriptive text
+        // if (registerSectionTitle.length) registerSectionTitle.hide();
+        // if (registerSectionText.length) registerSectionText.hide();
+        // if (registerSectionSubtext.length) registerSectionSubtext.hide();
+    } else {
+        if (registrationFormContainer.length) {
+            registrationFormContainer.show();
+        }
+        if (registrationClosedMessage.length) {
+            registrationClosedMessage.hide();
+        }
+    }
+}
+
 $(document).ready(function() {
+    setupRegistrationFormVisibility(); // ADDED: Call the function to set initial visibility
+
     // Helper function to get value from an input or textarea
     function getElementValue(elementId) {
         return $(`#${elementId}`).val().trim();
