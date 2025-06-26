@@ -2,17 +2,12 @@
 
 /* Import fonts */
 
-
-
-@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&family=Chivo:ital,wght@0,100..900;1,100..900&display=swap');
-
-
-
+@import url("https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&family=Chivo:ital,wght@0,100..900;1,100..900&display=swap");
 
 /* Set font variables */
 :root {
-    --bodyFont: 'Archivo', sans-serif;
-    --titleFont:  'Chivo', sans-serif;
+    --bodyFont: "Archivo", sans-serif;
+    --titleFont: "Chivo", sans-serif;
 }
 
 /* Set font families for elements */
@@ -21,28 +16,24 @@ p,
 textarea,
 h5,
 h6 {
-  font-family: var(--bodyFont);
+    font-family: var(--bodyFont);
 }
 
 h1,
 h2,
 h3,
 h4 {
-  font-family: var(--titleFont);
+    font-family: var(--titleFont);
 }
-
-
 
 /* ----- COLORS ----- */
 
 /* Set color variables */
 :root {
-
-
     --text: #b4b4b4;
     --background: #171717;
     --primary: #bdbdbd;
-    --secondary: #CCC5B8;
+    --secondary: #ccc5b8;
     --accent: #28ebb6;
     --textcontrast: #64d97b;
     --bgcontrast: #64d97b;
@@ -127,20 +118,19 @@ h4 {
     --accent90: hsl(164deg 83% 54% / 90%);
     --accent95: hsl(164deg 83% 54% / 95%);
 
-    --nirdine: #676FA3;
-    
+    --nirdine: #676fa3;
+
     --bg-art: url(../img/art/bg2.png);
     --discord: #5865f2;
     --patreon: #ff424d;
-
 }
 
 /* Set colors for elements */
 body {
-  background: var(--background);
-  background-position: top;
-  background-repeat: no-repeat;
-  background-size: cover;
+    background: var(--background);
+    background-position: top;
+    background-repeat: no-repeat;
+    background-size: cover;
 }
 
 body::before {
@@ -159,12 +149,7 @@ body::before {
     background-attachment: fixed;
     background-size: cover;
     filter: blur(1px);
-
 }
-
-
-
-
 
 .element {
     background: rgba(0, 0, 0, 0.5);
@@ -175,11 +160,10 @@ body::before {
     border-color: rgba(255, 255, 255, 0.14);
 }
 
-input[type=submit] {
+input[type="submit"] {
     background: var(--accent);
     color: var(--background);
 }
-
 
 #search .searchInput:hover,
 #search .searchInput:focus-visible {
@@ -191,10 +175,9 @@ input[type=submit] {
 header ul img:hover,
 header ul a:focus-visible img,
 input[type="submit"]:hover,
-input[type="submit"]:focus-visible{
+input[type="submit"]:focus-visible {
     filter: brightness(1.2);
 }
-
 
 h1,
 h2,
@@ -202,7 +185,6 @@ h3,
 h4,
 h5,
 h6,
-
 input,
 textarea {
     color: var(--primary);
@@ -217,8 +199,8 @@ label {
 }
 
 a {
-  text-decoration: underline;
-  color: var(--accent);
+    text-decoration: underline;
+    color: var(--accent);
 }
 
 strong {
@@ -228,7 +210,6 @@ strong {
 mark {
     color: var(--accent);
 }
-
 
 footer span {
     color: var(--nirdine);
@@ -241,12 +222,12 @@ foooter:focus-within {
 }
 
 #progress {
-  background-image: linear-gradient(120deg, var(--accent) 0%, var(--accentdark) 100%);
+    background-image: linear-gradient(120deg, var(--accent) 0%, var(--accentdark) 100%);
 }
 
 /* Submit button loading animation */
 .send-deck.loading-active {
-    background-image: linear-gradient(to right, var(--accent) 50%,  #65a5b2 50%);
+    background-image: linear-gradient(to right, var(--accent) 50%, #65a5b2 50%);
     background-size: 200% 100%;
     background-position: 100% 0; /* Start with the 'unfilled' color taking up the space */
     animation: fillButton 2.5s linear forwards; /* 'forwards' keeps the state at 100% */
