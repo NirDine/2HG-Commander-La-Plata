@@ -88,9 +88,6 @@ small {
     font-size: var(--small);
 }
 
-button {
-    font-size: var(--p);
-}
 
 .paragraph {
     display: flex;
@@ -613,12 +610,31 @@ main {
     width: 100%;
 }
 
-#register .send-deck {
+#register .button-holder {
+    display: flex;
+    gap: 0.5em;
+    width: 100%;
+    flex-direction: row;
+}
+
+#register #send-decks-button, #register button {
     padding: 1.5em;
     border-radius: var(--border1);
     border: 0px;
     cursor: pointer;
+    transition: 0.2s ease;
 }
+
+#register .button-holder:has(input[type="submit"]:disabled) button {
+    flex: 1;
+}
+
+#register .button-holder:not(:has(input[type="submit"]:disabled)) input[type="submit"] {
+    flex: 1;
+}
+
+
+
 
 .footer {
     display: flex;
@@ -696,6 +712,8 @@ footer .copyright {
     border: 3px solid var(--primary50);
 }
 
+
+
 /* responsiveness */
 
 @media screen and (max-width: 1500px) {
@@ -746,6 +764,10 @@ footer .copyright {
 
     #register .form-inner-container {
         flex-direction: column;
+    }
+    
+    #register .button-holder {
+    flex-direction: column;
     }
 }
 
@@ -857,6 +879,10 @@ footer .copyright {
     .older-versions-link {
         text-align: center;
         width: 200%;
+    }
+
+    #register .button-holder {
+    flex-direction: column;
     }
 }
 
