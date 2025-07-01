@@ -22,7 +22,6 @@
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon//apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="CommanderDuo" />
     <link rel="manifest" href="img/favicon//site.webmanifest" />
-
   </head>
   <body>
     <div id="progress"></div>
@@ -203,7 +202,7 @@
             </p>
             <p class="three step">
               <span class="color-effect"> Paguen la entrada</span> <br />
-              Se abona en caja el día del evento
+              Se abona por WhatsApp al <a href="#" class="hiddenfrombots"><span class=" color-effect phone-number"></span></a>
             </p>
             <p class="four step">
               <span class="color-effect"> Vengan a jugar </span><br />
@@ -692,8 +691,8 @@
               </h5>
               <div class="faq-a">
                 <p style="font-family: Archivo, sans-serif">
-                  La entrada es de <span class="color-effect">$12.500</span> pesos por persona y se abona en caja el día
-                  del evento.
+                  La entrada es de <span class="color-effect">$10.000</span> pesos por persona y se abona
+                  por WhatsApp al <a href="#" class="hiddenfrombots"><span class=" color-effect phone-number"></span></a>.
                 </p>
               </div>
             </div>
@@ -710,7 +709,7 @@
               <div class="faq-a">
                 <p style="font-family: Archivo, sans-serif">
                   ¡Por supuesto! Van a haber premios para los equipos que terminen en
-                  <span class="color-effect">primer, segundo, tercer y cuarto</span> lugar, y se van a realizar sorteos
+                  <span class="color-effect">primer, segundo y tercer</span> lugar, y se van a realizar sorteos
                   entre todos los participantes del evento.
                 </p>
               </div>
@@ -725,14 +724,14 @@
               <h2>Registrarse</h2>
               <p>
                 Ambos mazos van a ser validados y enviados al equipo de organización (es automatico). <br />
-                La entrada se abona en caja el día del evento.
+                La entrada se abona por WhatsApp al <a href="#" class="hiddenfrombots"><span class=" color-effect phone-number"></span></a>.
               </p>
               <p>Recuerden que los proxies están permitidos, pero que deben ser a impresiones a color y legibles.</p>
             </div>
           </div>
-          <div id="registrationClosedMessageContent" style="display: none; text-align: center; padding: 20px 0;">
+          <div id="registrationClosedMessageContent" style="display: none; text-align: center; padding: 20px 0">
             <h2 class="color-effect">¡Inscripciones cerradas!</h2>
-            <h4> Nos vemos en el próximo torneo</h4>
+            <h4>Nos vemos en el próximo torneo</h4>
           </div>
           <div class="form-container" id="registrationFormContainer">
             <form action="POST">
@@ -1068,6 +1067,13 @@
       };
 
       $(document).on("scroll", processScroll);
+    </script>
+    <script>
+        let url = "https://wa.me/542944418630";
+        let phone = "+54 294 44-8630";
+        $(".hiddenfrombots").attr("href", url);
+        $(".hiddenfrombots .phone-number").text(phone);
+
     </script>
   </body>
 </html>

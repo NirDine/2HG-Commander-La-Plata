@@ -2,7 +2,7 @@
 // It will use jQuery for DOM manipulation and AJAX requests.
 
 // ADDED: Variable to control registration form visibility
-const isRegistrationFull = true; // Set to true to close registration
+const isRegistrationFull = false; // Set to true to close registration
 
 const ENABLE_ADVANCED_RULES = true; // Toggle for advanced deck validation rules
 let dotAnimationInterval = null;
