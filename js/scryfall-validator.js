@@ -5,8 +5,13 @@
 const isRegistrationFull = false; // Set to true to close registration
 
 const ENABLE_ADVANCED_RULES = true; // Toggle for advanced deck validation rules
-let dotAnimationInterval = null;
-let originalButtonText = "";
+let validationDotAnimationInterval = null;
+let sendDotAnimationInterval = null;
+let originalValidateButtonText = "";
+let originalSendButtonText = "";
+
+let decksAreValid = false; // Global state for validation status
+let validatedDeckData = null; // Store validated deck data for sending
 
 // ADDED: Function to control registration form and message visibility
 function setupRegistrationFormVisibility() {
@@ -41,6 +46,17 @@ function setupRegistrationFormVisibility() {
 
 $(document).ready(function () {
     setupRegistrationFormVisibility(); // ADDED: Call the function to set initial visibility
+
+    const $validateButton = $("#validate-decks-button");
+    const $sendButton = $("#send-decks-button");
+    const $logWrapper = $(".log-wrapper");
+    const $errorList = $logWrapper.find(".faq-a p");
+    const $errorTitle = $logWrapper.find(".faq");
+
+    // Store original button texts
+    if ($validateButton.length) originalValidateButtonText = $validateButton.text();
+    if ($sendButton.length) originalSendButtonText = $sendButton.val();
+
 
     // Helper function to get value from an input or textarea
     function getElementValue(elementId) {
@@ -77,7 +93,9 @@ $(document).ready(function () {
     }
 
     const SCRYFALL_API_ENDPOINT = "https://api.scryfall.com/cards/collection";
-    let requestInProgress = false; // Global flag to prevent multiple simultaneous submissions
+    let validationRequestInProgress = false;
+    let sendRequestInProgress = false;
+
 
     // Function to validate a player's commander and decklist
     function validatePlayerDeck(commanderElementName, decklistElementName) {
@@ -86,9 +104,6 @@ $(document).ready(function () {
             const decklistString = getElementValue(decklistElementName);
 
             if (!commanderName) {
-                // Immediately resolve with an error if commander is missing, as it's required.
-                // Or reject, depending on how we want to handle this upstream.
-                // For now, let's create a structure indicating the missing commander.
                 resolve({
                     commander: { name: "", scryfall_data: null, is_legal: false, error: "Commander name is missing." },
                     decklist: parseCardList(decklistString).map((card) => ({
@@ -110,7 +125,6 @@ $(document).ready(function () {
 
             const identifiers = allCardsToFetch.map((card) => {
                 let nameForScryfall = card.name.toLowerCase();
-                // Scryfall expects " // " for split cards
                 if (nameForScryfall.includes("//") && !nameForScryfall.includes(" // ")) {
                     nameForScryfall = nameForScryfall.replace("//", " // ");
                 }
@@ -125,13 +139,6 @@ $(document).ready(function () {
 
             function makeScryfallRequest() {
                 if (identifiers.length === 0) {
-                    // No cards to fetch (e.g. empty decklist and only commander)
-                    // This check might be redundant if commander is always present.
-                    // If only commander, identifiers will have 1 item.
-                    // If commander + empty decklist, identifiers will have 1 item.
-                    // If commander is missing and decklist is empty, identifiers is empty.
-                    // This case should be handled by the initial commanderName check.
-                    // However, if commander is present but decklist is empty, this function will still run once.
                     const finalValidatedCards = processScryfallResults([], [], allCardsToFetch);
                     resolve(finalValidatedCards);
                     return;
@@ -154,16 +161,11 @@ $(document).ready(function () {
                                 card.name ? card.name.toLowerCase() : card.toString().toLowerCase()
                             )
                         );
-
                         requestsMade++;
                         if (requestsMade < totalBatches) {
                             currentOffset += 70;
-                            setTimeout(makeScryfallRequest, 110); // Scryfall API rate limit recommendation (100ms, add a bit buffer)
+                            setTimeout(makeScryfallRequest, 110);
                         } else {
-                            // All requests completed
-                            // console.log('DEBUG: Final Scryfall Data (found):', JSON.stringify(scryfallResponseData, null, 2));
-                            // console.log('DEBUG: Final Scryfall Data (not_found):', JSON.stringify(accumulatedNotFound, null, 2));
-                            // console.log('DEBUG: Original input cards for processing:', JSON.stringify(allCardsToFetch, null, 2));
                             const finalValidatedCards = processScryfallResults(
                                 scryfallResponseData,
                                 accumulatedNotFound,
@@ -174,35 +176,30 @@ $(document).ready(function () {
                     },
                     error: function (xhr, status, error) {
                         console.error("Error retrieving card data from Scryfall:", status, error, xhr.responseText);
-                        // Add all cards from the failed batch to not_found
                         const failedBatchIdentifiers = requestPayload.identifiers.map((id) => id.name.toLowerCase());
                         accumulatedNotFound = accumulatedNotFound.concat(failedBatchIdentifiers);
-
                         requestsMade++;
                         if (requestsMade < totalBatches) {
                             currentOffset += 70;
                             setTimeout(makeScryfallRequest, 110);
                         } else {
-                            // All requests completed, some might have failed
                             const finalValidatedCards = processScryfallResults(
                                 scryfallResponseData,
                                 accumulatedNotFound,
                                 allCardsToFetch
                             );
-                            resolve(finalValidatedCards); // Resolve, as errors are handled per card
+                            resolve(finalValidatedCards);
                         }
                     }
                 });
             }
 
             if (identifiers.length > 0) {
-                makeScryfallRequest(); // Initial call
+                makeScryfallRequest();
             } else if (commanderName && parsedDecklist.length === 0) {
-                // Only a commander was provided
                 const finalValidatedCards = processScryfallResults([], [], allCardsToFetch);
                 resolve(finalValidatedCards);
             } else {
-                // Should not happen if commanderName check is effective
                 resolve({
                     commander: {
                         name: commanderName,
@@ -217,7 +214,6 @@ $(document).ready(function () {
         });
     }
 
-    // Helper to process Scryfall results
     function processScryfallResults(scryfallData, notFoundNames, originalInputCards) {
         const validatedCards = {
             commander: null,
@@ -226,29 +222,22 @@ $(document).ready(function () {
         };
 
         originalInputCards.forEach((inputCard) => {
-            const normalizedInputName = inputCard.name.toLowerCase(); // Keep it simple for input
-
+            const normalizedInputName = inputCard.name.toLowerCase();
             const foundScryfallCard = scryfallData.find((sc) => {
                 const normalizedScryfallCardName = sc.name.toLowerCase();
-                if (normalizedScryfallCardName === normalizedInputName) {
-                    return true; // Exact match
-                }
-                // Handle cases like "Kellan, Daring Traveler" (input) vs "Kellan, Daring Traveler // Journey On" (Scryfall)
+                if (normalizedScryfallCardName === normalizedInputName) return true;
                 if (normalizedScryfallCardName.includes(" // ")) {
                     const frontFaceName = normalizedScryfallCardName.split(" // ")[0].trim();
-                    if (frontFaceName === normalizedInputName) {
-                        return true; // Matches front face
-                    }
+                    if (frontFaceName === normalizedInputName) return true;
                 }
                 return false;
             });
 
             let cardEntry;
-
             if (foundScryfallCard) {
                 const isLegal = foundScryfallCard.legalities && foundScryfallCard.legalities.commander === "legal";
                 cardEntry = {
-                    name: foundScryfallCard.name, // Use Scryfall's canonical name
+                    name: foundScryfallCard.name,
                     quantity: inputCard.quantity,
                     scryfall_data: foundScryfallCard,
                     is_legal: isLegal,
@@ -259,19 +248,11 @@ $(document).ready(function () {
                     validatedCards.errors.push(cardEntry.error);
                 }
             } else {
-                // Check if it was in notFoundNames (Scryfall sometimes returns slightly different names in not_found)
                 const wasNotFound = notFoundNames.some((nfName) => {
-                    // Attempt a more robust comparison for not_found names
                     const normalizedNfName = nfName.toLowerCase().replace(/\s\/\/\s/g, "//");
-                    return (
-                        normalizedInputName === normalizedNfName ||
-                        normalizedInputName.startsWith(normalizedNfName.split(" // ")[0])
-                    );
+                    return normalizedInputName === normalizedNfName || normalizedInputName.startsWith(normalizedNfName.split(" // ")[0]);
                 });
-
-                const errorMsg = wasNotFound
-                    ? `Card '${inputCard.name}' not found by Scryfall.`
-                    : `Data for '${inputCard.name}' missing after Scryfall fetch.`;
+                const errorMsg = wasNotFound ? `Card '${inputCard.name}' not found by Scryfall.` : `Data for '${inputCard.name}' missing after Scryfall fetch.`;
                 cardEntry = {
                     name: inputCard.name,
                     quantity: inputCard.quantity,
@@ -289,7 +270,6 @@ $(document).ready(function () {
             }
         });
 
-        // Ensure commander entry exists even if it was not found or had issues
         if (!validatedCards.commander && originalInputCards.find((c) => c.isCommander)) {
             const commanderInput = originalInputCards.find((c) => c.isCommander);
             const errorMsg = `Commander '${commanderInput.name}' not found or failed to process.`;
@@ -302,594 +282,323 @@ $(document).ready(function () {
             };
             if (!validatedCards.errors.includes(errorMsg)) validatedCards.errors.push(errorMsg);
         }
-
         return validatedCards;
     }
 
     const DISCORD_WEBHOOK_URL =
         "https://discord.com/api/webhooks/1386069620556828874/cWcs23AdzHSkhHSKhtn8j5T8sYqH9-k4Ju2NKh0rDeYk6gqJ7y35R4uMZbZ2DtWQps9B";
-
-    const MAX_FIELD_VALUE_LENGTH = 1000; // Max characters for a Discord embed field value (safe under 1024)
+    const MAX_FIELD_VALUE_LENGTH = 1000;
 
     function performAdvancedDeckValidation(player1Data, player2Data) {
         const advancedErrors = [];
-        // All rule checks will go here
-
-        // Rule 1: Total 100 cards per deck
-        let p1DeckTotal = 0;
-        if (player1Data && player1Data.decklist) {
-            p1DeckTotal = player1Data.decklist.reduce((sum, card) => sum + card.quantity, 0);
-        }
-        if (player1Data && player1Data.commander && player1Data.commander.scryfall_data) {
-            // Commander counts as 1 card if valid
-            p1DeckTotal += player1Data.commander.quantity; // Should be 1
-        }
-
-        let p2DeckTotal = 0;
-        if (player2Data && player2Data.decklist) {
-            p2DeckTotal = player2Data.decklist.reduce((sum, card) => sum + card.quantity, 0);
-        }
-        if (player2Data && player2Data.commander && player2Data.commander.scryfall_data) {
-            // Commander counts as 1 card if valid
-            p2DeckTotal += player2Data.commander.quantity; // Should be 1
-        }
-
+        let p1DeckTotal = (player1Data?.decklist?.reduce((sum, card) => sum + card.quantity, 0) || 0) + (player1Data?.commander?.scryfall_data ? 1 : 0);
+        let p2DeckTotal = (player2Data?.decklist?.reduce((sum, card) => sum + card.quantity, 0) || 0) + (player2Data?.commander?.scryfall_data ? 1 : 0);
         const deckSizeErrors = [];
-        if (p1DeckTotal !== 100 && player1Data && player1Data.commander && player1Data.commander.scryfall_data) {
-            // Only apply if commander is valid enough to count
-            deckSizeErrors.push(`  - Jugador 1: Mazo tiene ${p1DeckTotal} cartas.`);
-        }
-        if (p2DeckTotal !== 100 && player2Data && player2Data.commander && player2Data.commander.scryfall_data) {
-            // Only apply if commander is valid enough to count
-            deckSizeErrors.push(`  - Jugador 2: Mazo tiene ${p2DeckTotal} cartas.`);
-        }
+        if (p1DeckTotal !== 100 && player1Data?.commander?.scryfall_data) deckSizeErrors.push(`  - Jugador 1: Mazo tiene ${p1DeckTotal} cartas.`);
+        if (p2DeckTotal !== 100 && player2Data?.commander?.scryfall_data) deckSizeErrors.push(`  - Jugador 2: Mazo tiene ${p2DeckTotal} cartas.`);
+        if (deckSizeErrors.length > 0) advancedErrors.push("**Violación de Regla: Mazos no tienen 100 cartas**\n" + deckSizeErrors.join("\n"));
 
-        if (deckSizeErrors.length > 0) {
-            advancedErrors.push("**Violación de Regla: Mazos no tienen 100 cartas**\n" + deckSizeErrors.join("\n"));
-        }
-
-        // Rule 2: Single color commanders
         const commanderColorErrors = [];
-        if (
-            player1Data &&
-            player1Data.commander &&
-            player1Data.commander.scryfall_data &&
-            player1Data.commander.scryfall_data.color_identity
-        ) {
-            if (player1Data.commander.scryfall_data.color_identity.length > 1) {
-                commanderColorErrors.push(
-                    `  - Comandante de Jugador 1 (${player1Data.commander.name}): Identidad de color es ${player1Data.commander.scryfall_data.color_identity.join("")}, debe ser monocolor.`
-                );
-            }
-        }
-        if (
-            player2Data &&
-            player2Data.commander &&
-            player2Data.commander.scryfall_data &&
-            player2Data.commander.scryfall_data.color_identity
-        ) {
-            if (player2Data.commander.scryfall_data.color_identity.length > 1) {
-                commanderColorErrors.push(
-                    `  - Comandante de Jugador 2 (${player2Data.commander.name}): Identidad de color es ${player2Data.commander.scryfall_data.color_identity.join("")}, debe ser monocolor.`
-                );
-            }
-        }
-        if (commanderColorErrors.length > 0) {
-            advancedErrors.push("**Violación de Regla: Comandantes Multi-color**\n" + commanderColorErrors.join("\n"));
-        }
+        if (player1Data?.commander?.scryfall_data?.color_identity?.length > 1) commanderColorErrors.push(`  - Comandante de Jugador 1 (${player1Data.commander.name}): Identidad de color es ${player1Data.commander.scryfall_data.color_identity.join("")}, debe ser monocolor.`);
+        if (player2Data?.commander?.scryfall_data?.color_identity?.length > 1) commanderColorErrors.push(`  - Comandante de Jugador 2 (${player2Data.commander.name}): Identidad de color es ${player2Data.commander.scryfall_data.color_identity.join("")}, debe ser monocolor.`);
+        if (commanderColorErrors.length > 0) advancedErrors.push("**Violación de Regla: Comandantes Multi-color**\n" + commanderColorErrors.join("\n"));
 
-        // Rule 3: No repeated non-land cards between decks
         const p1NonLandCardNames = new Set();
-        if (player1Data && player1Data.decklist) {
-            player1Data.decklist.forEach((card) => {
-                if (
-                    card.scryfall_data &&
-                    card.scryfall_data.type_line &&
-                    !card.scryfall_data.type_line.toLowerCase().includes("land")
-                ) {
-                    p1NonLandCardNames.add(card.name.toLowerCase()); // Normalize name for comparison
-                }
-            });
-        }
-
+        player1Data?.decklist?.forEach(card => { if (card.scryfall_data && !card.scryfall_data.type_line?.toLowerCase().includes("land")) p1NonLandCardNames.add(card.name.toLowerCase()); });
         const repeatedCardErrors = [];
-        if (player2Data && player2Data.decklist) {
-            player2Data.decklist.forEach((card) => {
-                if (
-                    card.scryfall_data &&
-                    card.scryfall_data.type_line &&
-                    !card.scryfall_data.type_line.toLowerCase().includes("land")
-                ) {
-                    if (p1NonLandCardNames.has(card.name.toLowerCase())) {
-                        repeatedCardErrors.push(`  - '${card.name}' repetida entre mazos.`);
-                        // To avoid reporting the same card multiple times if it's in P1's set and P2 has multiple copies (though our decklist structure is unique names with quantities)
-                        // or if we were checking P1 against P2's set after this. This simple one-way check is fine.
-                        // For truly unique error lines, we could add to a Set first, then format.
-                    }
-                }
-            });
-        }
-        if (repeatedCardErrors.length > 0) {
-            // To ensure unique error lines if a card name might appear in repeatedCardErrors due to case or other minor variations before normalization
-            const uniqueRepeatedCardErrorLines = [...new Set(repeatedCardErrors)];
-            advancedErrors.push(
-                "**Violación de Regla: Cartas no-tierra repetidas entre mazos**\n" +
-                    uniqueRepeatedCardErrorLines.join("\n")
-            );
-        }
+        player2Data?.decklist?.forEach(card => { if (card.scryfall_data && !card.scryfall_data.type_line?.toLowerCase().includes("land") && p1NonLandCardNames.has(card.name.toLowerCase())) repeatedCardErrors.push(`  - '${card.name}' repetida entre mazos.`); });
+        if (repeatedCardErrors.length > 0) advancedErrors.push("**Violación de Regla: Cartas no-tierra repetidas entre mazos**\n" + [...new Set(repeatedCardErrors)].join("\n"));
 
-        // Rule 4: Cards within combined commander color identity
         const colorIdentityErrors = [];
         let combinedCommanderColors = new Set();
-
-        if (
-            player1Data &&
-            player1Data.commander &&
-            player1Data.commander.scryfall_data &&
-            player1Data.commander.scryfall_data.color_identity
-        ) {
-            player1Data.commander.scryfall_data.color_identity.forEach((color) => combinedCommanderColors.add(color));
-        }
-        if (
-            player2Data &&
-            player2Data.commander &&
-            player2Data.commander.scryfall_data &&
-            player2Data.commander.scryfall_data.color_identity
-        ) {
-            player2Data.commander.scryfall_data.color_identity.forEach((color) => combinedCommanderColors.add(color));
-        }
-
-        // If either commander is missing or invalid, this rule might not be applicable or might give weird results.
-        // We proceed if we have at least one commander's color identity to form a basis.
-        // Or, if combinedCommanderColors is empty (e.g. both colorless commanders), then only colorless cards are allowed.
-
+        player1Data?.commander?.scryfall_data?.color_identity?.forEach(color => combinedCommanderColors.add(color));
+        player2Data?.commander?.scryfall_data?.color_identity?.forEach(color => combinedCommanderColors.add(color));
         const combinedColorsString = Array.from(combinedCommanderColors).join("") || "Colorless";
-
         [player1Data, player2Data].forEach((playerData, playerIndex) => {
-            if (playerData && playerData.decklist) {
-                playerData.decklist.forEach((card) => {
-                    if (card.scryfall_data && card.scryfall_data.color_identity) {
-                        const cardColors = card.scryfall_data.color_identity;
-                        let isAllowed = true;
-
-                        if (cardColors.length > 0) {
-                            // Card has colors
-                            if (combinedCommanderColors.size === 0) {
-                                // Commanders are colorless, card has colors
-                                isAllowed = false;
-                            } else {
-                                // Card has colors, commanders have colors
-                                for (const color of cardColors) {
-                                    if (!combinedCommanderColors.has(color)) {
-                                        isAllowed = false;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        // If card is colorless (cardColors.length === 0), it's allowed by this rule.
-
-                        if (!isAllowed) {
-                            colorIdentityErrors.push(
-                                `  - Jugador ${playerIndex + 1} - Carta '${card.name}' (Identidad: ${cardColors.join("") || "Colorless"}) está fuera de la identidad combinada de los comandantes (${combinedColorsString}).`
-                            );
-                        }
+            playerData?.decklist?.forEach(card => {
+                if (card.scryfall_data?.color_identity) {
+                    const cardColors = card.scryfall_data.color_identity;
+                    let isAllowed = true;
+                    if (cardColors.length > 0) {
+                        if (combinedCommanderColors.size === 0) isAllowed = false;
+                        else { for (const color of cardColors) if (!combinedCommanderColors.has(color)) { isAllowed = false; break; } }
                     }
-                });
-            }
+                    if (!isAllowed) colorIdentityErrors.push(`  - Jugador ${playerIndex + 1} - Carta '${card.name}' (Identidad: ${cardColors.join("") || "Colorless"}) está fuera de la identidad combinada de los comandantes (${combinedColorsString}).`);
+                }
+            });
         });
+        if (colorIdentityErrors.length > 0) advancedErrors.push("**Violación de Regla: Cartas fuera de la identidad de color combinada**\n" + colorIdentityErrors.join("\n"));
 
-        if (colorIdentityErrors.length > 0) {
-            advancedErrors.push(
-                "**Violación de Regla: Cartas fuera de la identidad de color combinada**\n" +
-                    colorIdentityErrors.join("\n")
-            );
-        }
-
-        // Rule 5: Max 3 "Game Changers" per deck
         const gameChangerErrors = [];
         [player1Data, player2Data].forEach((playerData, playerIndex) => {
-            if (playerData && playerData.decklist) {
+            if (playerData?.decklist) {
                 const gameChangerCardsInDeck = [];
                 let gameChangerCount = 0;
-                playerData.decklist.forEach((card) => {
-                    if (card.scryfall_data && card.scryfall_data.game_changer === true) {
-                        gameChangerCount++;
-                        gameChangerCardsInDeck.push(card.name);
-                    }
-                });
-                // Also check commander
-                if (
-                    playerData.commander &&
-                    playerData.commander.scryfall_data &&
-                    playerData.commander.scryfall_data.game_changer === true
-                ) {
-                    gameChangerCount++;
-                    gameChangerCardsInDeck.push(`${playerData.commander.name} (Comandante)`);
-                }
-
-                if (gameChangerCount > 3) {
-                    gameChangerErrors.push(
-                        `  - Jugador ${playerIndex + 1}: Tiene ${gameChangerCount} Game Changers (Máx. 3).\n    - Cartas: ${gameChangerCardsInDeck.join(", ")}`
-                    );
-                }
+                playerData.decklist.forEach(card => { if (card.scryfall_data?.game_changer === true) { gameChangerCount++; gameChangerCardsInDeck.push(card.name); } });
+                if (playerData.commander?.scryfall_data?.game_changer === true) { gameChangerCount++; gameChangerCardsInDeck.push(`${playerData.commander.name} (Comandante)`); }
+                if (gameChangerCount > 3) gameChangerErrors.push(`  - Jugador ${playerIndex + 1}: Tiene ${gameChangerCount} Game Changers (Máx. 3).\n    - Cartas: ${gameChangerCardsInDeck.join(", ")}`);
             }
         });
-
-        if (gameChangerErrors.length > 0) {
-            advancedErrors.push("**Violación de Regla: Demasiados Game Changers**\n" + gameChangerErrors.join("\n"));
-        }
-
+        if (gameChangerErrors.length > 0) advancedErrors.push("**Violación de Regla: Demasiados Game Changers**\n" + gameChangerErrors.join("\n"));
         return advancedErrors;
     }
 
     function generateDecklistFields(decklist, baseFieldName) {
         const fields = [];
-        let totalQuantity = 0;
-
         if (!decklist || decklist.length === 0) {
             fields.push({ name: `${baseFieldName} (0 cartas)`, value: "Ninguna carta en el mazo.", inline: false });
             return fields;
         }
-
-        totalQuantity = decklist.reduce((sum, card) => sum + card.quantity, 0);
-
+        const totalQuantity = decklist.reduce((sum, card) => sum + card.quantity, 0);
         let currentFieldValue = "";
         let partCounter = 0;
         const initialFieldName = `${baseFieldName} (${totalQuantity} cartas)`;
-
-        decklist.forEach((card, index) => {
+        decklist.forEach((card) => {
             const cardLine = `${card.quantity}x ${card.name}\n`;
             if (currentFieldValue.length + cardLine.length > MAX_FIELD_VALUE_LENGTH) {
-                // Add current field before it gets too long
-                fields.push({
-                    name: partCounter === 0 ? initialFieldName : `${initialFieldName} (Cont. ${partCounter})`,
-                    value: currentFieldValue.trim(), // Trim trailing newline if any
-                    inline: false
-                });
-                currentFieldValue = ""; // Reset for next part
-                partCounter++;
+                fields.push({ name: partCounter === 0 ? initialFieldName : `${initialFieldName} (Cont. ${partCounter})`, value: currentFieldValue.trim(), inline: false });
+                currentFieldValue = ""; partCounter++;
             }
             currentFieldValue += cardLine;
         });
-
-        // Add the last remaining part
-        if (currentFieldValue.length > 0) {
-            fields.push({
-                name: partCounter === 0 ? initialFieldName : `${initialFieldName} (Cont. ${partCounter})`,
-                value: currentFieldValue.trim(),
-                inline: false
-            });
-        }
+        if (currentFieldValue.length > 0) fields.push({ name: partCounter === 0 ? initialFieldName : `${initialFieldName} (Cont. ${partCounter})`, value: currentFieldValue.trim(), inline: false });
         return fields;
     }
 
-    function sendToDiscord(player1Data, player2Data, player1Name, player2Name) {
-        console.log("Attempting to send to Discord...");
-        console.log("P1 Data:", player1Data, "P1 Name:", player1Name);
-        console.log("P2 Data:", player2Data, "P2 Name:", player2Name);
+    function sendToDiscord(p1Data, p2Data, p1Name, p2Name) {
+        const threadTitle = `${p1Name || "Jugador 1"} & ${p2Name || "Jugador 2"} - Team submission`;
+        const payload = { username: "2HG Deck Registration Bot", avatar_url: "", thread_name: threadTitle, embeds: [] };
 
-        const threadTitle = `${player1Name || "Jugador 1"} & ${player2Name || "Jugador 2"} - Team submission`;
-
-        const payload = {
-            username: "2HG Deck Registration Bot",
-            avatar_url: "", // Optional: Add a URL to an image for the bot's avatar
-            thread_name: threadTitle, // Moved thread_name into the payload
-            embeds: []
-        };
-
-        // Player 1 Embed
-        if (player1Data && player1Data.commander) {
-            const p1Embed = {
-                title: `Jugador 1: ${player1Name || "Nombre no ingresado"}`,
-                // color will be set later based on validation errors
-                fields: [
-                    { name: "-------------------------", value: "\u200B", inline: false },
-                    {
-                        name: "Comandante",
-                        value: player1Data.commander.name, // Legal status removed, color indicates it
-                        inline: false
-                    },
-                    { name: "-------------------------", value: "\u200B", inline: false }
-                    // Decklist fields will be added below by generateDecklistFields
-                ]
-            };
-
-            const p1DecklistFields = generateDecklistFields(player1Data.decklist, "Mazo");
-            p1Embed.fields.push(...p1DecklistFields);
-
-            const player1ValidationErrors = [];
-            if (player1Data.commander && player1Data.commander.error) {
-                player1ValidationErrors.push(`Comandante: ${player1Data.commander.error}`);
-            } else if (player1Data.commander && !player1Data.commander.is_legal) {
-                // Add a generic error if commander is marked illegal but no specific error message was present
-                player1ValidationErrors.push(`Comandante: '${player1Data.commander.name}' es ILEGAL o NO ENCONTRADO.`);
-            }
-
-            player1Data.decklist.forEach((card) => {
-                if (card.error) player1ValidationErrors.push(card.error);
-            });
-
-            if (player1ValidationErrors.length > 0) {
-                p1Embed.fields.push({
-                    name: "Errores de Validación P1",
-                    value: player1ValidationErrors.join("\n").substring(0, 1020), // Discord field value limit
-                    inline: false
-                });
+        if (p1Data && p1Data.commander) {
+            const p1Embed = { title: `Jugador 1: ${p1Name || "Nombre no ingresado"}`, fields: [] };
+            p1Embed.fields.push({ name: "-------------------------", value: "\u200B", inline: false });
+            p1Embed.fields.push({ name: "Comandante", value: p1Data.commander.name, inline: false });
+            p1Embed.fields.push({ name: "-------------------------", value: "\u200B", inline: false });
+            p1Embed.fields.push(...generateDecklistFields(p1Data.decklist, "Mazo"));
+            const p1ValidationErrors = [];
+            if (p1Data.commander.error) p1ValidationErrors.push(`Comandante: ${p1Data.commander.error}`);
+            else if (!p1Data.commander.is_legal) p1ValidationErrors.push(`Comandante: '${p1Data.commander.name}' es ILEGAL o NO ENCONTRADO.`);
+            p1Data.decklist.forEach(card => { if (card.error) p1ValidationErrors.push(card.error); });
+            if (p1ValidationErrors.length > 0) {
+                p1Embed.fields.push({ name: "Errores de Validación P1", value: p1ValidationErrors.join("\n").substring(0, 1020), inline: false });
                 p1Embed.color = 15158332; // Red
-            } else {
-                p1Embed.color = 3066993; // Green
-            }
+            } else p1Embed.color = 3066993; // Green
             payload.embeds.push(p1Embed);
         }
 
-        // Player 2 Embed
-        if (player2Data && player2Data.commander) {
-            const p2Embed = {
-                title: `Jugador 2: ${player2Name || "Nombre no ingresado"}`,
-                // color will be set below based on errors
-                fields: [
-                    { name: "-------------------------", value: "\u200B", inline: false },
-                    {
-                        name: "Comandante",
-                        value: player2Data.commander.name, // Legal status removed
-                        inline: false
-                    },
-                    { name: "-------------------------", value: "\u200B", inline: false }
-                    // Decklist fields will be added below by generateDecklistFields
-                ]
-            };
-            const p2DecklistFields = generateDecklistFields(player2Data.decklist, "Mazo");
-            p2Embed.fields.push(...p2DecklistFields);
-
-            const player2ValidationErrors = [];
-            if (player2Data.commander && player2Data.commander.error) {
-                player2ValidationErrors.push(`Comandante: ${player2Data.commander.error}`);
-            } else if (player2Data.commander && !player2Data.commander.is_legal) {
-                player2ValidationErrors.push(`Comandante: '${player2Data.commander.name}' es ILEGAL o NO ENCONTRADO.`);
-            }
-
-            player2Data.decklist.forEach((card) => {
-                if (card.error) player2ValidationErrors.push(card.error);
-            });
-
-            if (player2ValidationErrors.length > 0) {
-                p2Embed.fields.push({
-                    name: "Errores de Validación P2",
-                    value: player2ValidationErrors.join("\n").substring(0, 1020),
-                    inline: false
-                });
+        if (p2Data && p2Data.commander) {
+            const p2Embed = { title: `Jugador 2: ${p2Name || "Nombre no ingresado"}`, fields: [] };
+            p2Embed.fields.push({ name: "-------------------------", value: "\u200B", inline: false });
+            p2Embed.fields.push({ name: "Comandante", value: p2Data.commander.name, inline: false });
+            p2Embed.fields.push({ name: "-------------------------", value: "\u200B", inline: false });
+            p2Embed.fields.push(...generateDecklistFields(p2Data.decklist, "Mazo"));
+            const p2ValidationErrors = [];
+            if (p2Data.commander.error) p2ValidationErrors.push(`Comandante: ${p2Data.commander.error}`);
+            else if (!p2Data.commander.is_legal) p2ValidationErrors.push(`Comandante: '${p2Data.commander.name}' es ILEGAL o NO ENCONTRADO.`);
+            p2Data.decklist.forEach(card => { if (card.error) p2ValidationErrors.push(card.error); });
+            if (p2ValidationErrors.length > 0) {
+                p2Embed.fields.push({ name: "Errores de Validación P2", value: p2ValidationErrors.join("\n").substring(0, 1020), inline: false });
                 p2Embed.color = 15158332; // Red
-            } else {
-                p2Embed.color = 3066993; // Green
-            }
+            } else p2Embed.color = 3066993; // Green
             payload.embeds.push(p2Embed);
         }
 
-        if (payload.embeds.length === 0) {
-            console.log("No data to send to Discord.");
-            return Promise.resolve(); // Nothing to send
-        }
-
-        // const threadTitle = `${player1Name || 'Jugador 1'} & ${player2Name || 'Jugador 2'} - Team submission`; // Already defined above in payload
-        // const webhookUrlWithThread = `${DISCORD_WEBHOOK_URL}?thread_name=${encodeURIComponent(threadTitle)}`; // No longer needed
-
-        return $.ajax({
-            type: "POST",
-            url: DISCORD_WEBHOOK_URL, // Use base URL
-            contentType: "application/json",
-            data: JSON.stringify(payload),
-            success: function () {
-                console.log("Successfully sent data to Discord.");
-            },
-            error: function (xhr, status, error) {
-                console.error("Error sending data to Discord:", status, error, xhr.responseText);
-            }
-        });
+        if (payload.embeds.length === 0) return Promise.resolve();
+        return $.ajax({ type: "POST", url: DISCORD_WEBHOOK_URL, contentType: "application/json", data: JSON.stringify(payload) });
     }
 
-    // Main validation logic (button click handler)
-    $(".send-deck").on("click", function (event) {
-        event.preventDefault(); // Prevent default form submission
-
-        if (requestInProgress) {
-            console.warn("Validation already in progress.");
-            return;
-        }
-        requestInProgress = true;
-        const $submitButton = $(this);
-        originalButtonText = $submitButton.val(); // Store original text
-        $submitButton.prop("disabled", true).addClass("loading-active");
-
-        let dotCount = 0;
-        $submitButton.val("Analizando"); // Initial text before dots
-        if (dotAnimationInterval) clearInterval(dotAnimationInterval); // Clear any existing interval
-        dotAnimationInterval = setInterval(() => {
-            dotCount = (dotCount + 1) % 4; // Cycle 0, 1, 2, 3
-            let dots = "";
-            for (let i = 0; i < dotCount; i++) {
-                dots += ".";
-            }
-            $submitButton.val("Analizando" + dots);
-        }, 500);
-
-        // Clear previous errors from the log display
-        const $logWrapper = $(".log-wrapper");
-        const $errorList = $logWrapper.find(".faq-a p");
-        const $errorTitle = $logWrapper.find(".faq");
+    function clearLog() {
         $errorList.empty();
         $errorTitle.hide();
         $logWrapper.find(".faq-cont").removeClass("is-open").find(".faq-a").hide();
+    }
 
-        console.log("Starting validation for both players...");
+    function displayLogMessage(messages, title, color, isError) {
+        clearLog();
+        if (messages.length === 0 && !isError) { // Only show success if there are messages or it's explicitly not an error
+             messages.push("¡Operación completada con éxito!"); // Default success if no specific messages
+        }
+
+        messages.forEach(msg => {
+            let formattedMsg = msg.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
+            $errorList.append(`<div>${formattedMsg}</div>`);
+        });
+
+        const $errorTitleSvg = $errorTitle.find("svg.faq-icon").detach();
+        $errorTitle.text(title).css("color", color);
+        if ($errorTitleSvg.length) $errorTitle.append($errorTitleSvg);
+        $errorTitle.show();
+
+        if (!$logWrapper.find(".faq-cont .faq").hasClass("is-open")) {
+            $logWrapper.find(".faq-cont .faq").show().addClass("is-open").closest(".faq-cont").find(".faq-a").slideDown(200);
+        }
+    }
+
+    function startButtonLoadingAnimation($button, baseText, intervalVariable) {
+        let dotCount = 0;
+        if (intervalVariable === "validation") {
+            if (validationDotAnimationInterval) clearInterval(validationDotAnimationInterval);
+            $button.text(baseText);
+            validationDotAnimationInterval = setInterval(() => {
+                dotCount = (dotCount + 1) % 4;
+                let dots = Array(dotCount + 1).join(".");
+                $button.text(baseText + dots);
+            }, 500);
+        } else if (intervalVariable === "send") {
+            if (sendDotAnimationInterval) clearInterval(sendDotAnimationInterval);
+            $button.val(baseText);
+             sendDotAnimationInterval = setInterval(() => {
+                dotCount = (dotCount + 1) % 4;
+                let dots = Array(dotCount + 1).join(".");
+                $button.val(baseText + dots);
+            }, 500);
+        }
+    }
+
+    function stopButtonLoadingAnimation($button, originalText, intervalVariable) {
+        if (intervalVariable === "validation") {
+            clearInterval(validationDotAnimationInterval);
+            validationDotAnimationInterval = null;
+            $button.text(originalText);
+        } else if (intervalVariable === "send") {
+            clearInterval(sendDotAnimationInterval);
+            sendDotAnimationInterval = null;
+            $button.val(originalText);
+        }
+        $button.removeClass("loading-active").prop("disabled", false);
+    }
+
+
+    function handleDeckValidation() {
+        if (validationRequestInProgress) {
+            console.warn("Validation already in progress.");
+            return;
+        }
+        validationRequestInProgress = true;
+        decksAreValid = false;
+        validatedDeckData = null;
+        $sendButton.prop("disabled", true);
+        $validateButton.prop("disabled", true).addClass("loading-active");
+        startButtonLoadingAnimation($validateButton, "Validando", "validation");
+        clearLog();
 
         Promise.all([
             validatePlayerDeck("jugador-1-comandante", "jugador-1-mazo"),
             validatePlayerDeck("jugador-2-comandante", "jugador-2-mazo")
         ])
-            .then(([player1Result, player2Result]) => {
-                console.log("Player 1 Validation Result:", player1Result);
-                console.log("Player 2 Validation Result:", player2Result);
+        .then(([player1Result, player2Result]) => {
+            const allErrors = [];
+            if (player1Result.errors && player1Result.errors.length > 0) player1Result.errors.forEach(err => allErrors.push(`Jugador 1: ${err}`));
+            if (player2Result.errors && player2Result.errors.length > 0) player2Result.errors.forEach(err => allErrors.push(`Jugador 2: ${err}`));
 
-                // Combine all errors for display
-                const allErrors = [];
-                if (player1Result.errors && player1Result.errors.length > 0) {
-                    player1Result.errors.forEach((err) => allErrors.push(`Jugador 1: ${err}`));
-                }
-                if (player2Result.errors && player2Result.errors.length > 0) {
-                    player2Result.errors.forEach((err) => allErrors.push(`Jugador 2: ${err}`));
-                }
-
-                // The next step will handle localStorage and detailed error display.
-                // For now, just log and prepare for error display structure.
-
-                if (ENABLE_ADVANCED_RULES) {
-                    if (
-                        player1Result &&
-                        player1Result.commander &&
-                        player1Result.commander.scryfall_data &&
-                        player2Result &&
-                        player2Result.commander &&
-                        player2Result.commander.scryfall_data
-                    ) {
-                        // Only run advanced rules if both commanders are validly fetched from Scryfall,
-                        // as some rules depend on commander data.
-                        // Individual card errors within playerXResult.errors are already handled by Scryfall validation.
-                        const advancedRuleErrors = performAdvancedDeckValidation(player1Result, player2Result);
-                        if (advancedRuleErrors.length > 0) {
-                            // Add a general header for advanced rule violations if there isn't one from Scryfall
-                            // allErrors.push("**Advanced Rule Violations:**"); // This might be too generic. The function itself adds specific headers.
-                            advancedRuleErrors.forEach((advErr) => allErrors.push(advErr)); // Add each error individually
-                        }
-                    } else {
-                        allErrors.push(
-                            "No se pudieron ejecutar las reglas avanzadas porque la información de uno o ambos comandantes no está disponible."
-                        );
-                    }
-                }
-
-                const originalErrorTitleColor = $errorTitle.css("color"); // Store original color
-                $errorList.empty(); // Clear previous messages
-
-                if (allErrors.length > 0) {
-                    console.warn("Validation found errors:", allErrors);
-                    allErrors.forEach((err) => {
-                        let formattedError = err.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>"); // Bold text between **
-                        formattedError = formattedError.replace(/\n/g, "<br>"); // Newlines to <br>
-                        $errorList.append(`<div>${formattedError}</div>`); // Use div for block display of each error group
-                    });
-                    const $errorTitleSvg = $errorTitle.find("svg.faq-icon").detach();
-                    $errorTitle.text("Oops! Hay algunos errores").css("color", "#f45d5d");
-                    if ($errorTitleSvg.length) {
-                        $errorTitle.append($errorTitleSvg);
-                    }
-                    $errorTitle.show();
-
-                    localStorage.removeItem("validatedDecks"); // Clear any outdated valid data
+            if (ENABLE_ADVANCED_RULES) {
+                if (player1Result?.commander?.scryfall_data && player2Result?.commander?.scryfall_data) {
+                    const advancedRuleErrors = performAdvancedDeckValidation(player1Result, player2Result);
+                    if (advancedRuleErrors.length > 0) advancedRuleErrors.forEach(advErr => allErrors.push(advErr));
                 } else {
-                    console.log("Validation successful for both players!");
-                    const validatedDataForStorage = {
-                        player1: player1Result,
-                        player2: player2Result
-                    };
-                    try {
-                        localStorage.setItem("validatedDecks", JSON.stringify(validatedDataForStorage));
-                        console.log("Decks saved to localStorage:", validatedDataForStorage);
-                        $errorList.append("<span>¡Mazos validados y guardados correctamente!</span><br>");
-                        // $errorTitle.text('Éxito').css('color', 'green').show(); // Title will be updated after Discord send attempt
+                    allErrors.push("No se pudieron ejecutar las reglas avanzadas porque la información de uno o ambos comandantes no está disponible.");
+                }
+            }
 
-                        // Now send to Discord
-                        const player1Name = getElementValue("jugador-1-nombre");
-                        const player2Name = getElementValue("jugador-2-nombre");
+            if (allErrors.length > 0) {
+                displayLogMessage(allErrors, "Oops! Hay algunos errores", "#f45d5d", true);
+                localStorage.removeItem("validatedDecks");
+            } else {
+                decksAreValid = true;
+                validatedDeckData = { player1: player1Result, player2: player2Result };
+                try {
+                    localStorage.setItem("validatedDecks", JSON.stringify(validatedDeckData));
+                    displayLogMessage(["¡Mazos validados y guardados correctamente!"], "Validación Exitosa", "green", false);
+                    $sendButton.prop("disabled", false);
+                } catch (e) {
+                    console.error("Error saving to localStorage:", e);
+                    displayLogMessage([`Error al guardar en localStorage: ${e.message}`], "Oops! Hay algunos errores", "#f45d5d", true);
+                    decksAreValid = false;
+                    validatedDeckData = null;
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Critical error during validation process:", error);
+            displayLogMessage([`Error crítico durante la validación: ${error.message || error}`], "Oops! Error Crítico", "#f45d5d", true);
+            localStorage.removeItem("validatedDecks");
+        })
+        .finally(() => {
+            validationRequestInProgress = false;
+            stopButtonLoadingAnimation($validateButton, originalValidateButtonText, "validation");
+        });
+    }
 
-                        sendToDiscord(player1Result, player2Result, player1Name, player2Name)
-                            .then(() => {
-                                $errorList.append("<span>Datos enviados a Discord.</span>");
-                                const $errorTitleSvg = $errorTitle.find("svg.faq-icon").detach();
-                                $errorTitle.text("Éxito Completo").css("color", "green");
-                                if ($errorTitleSvg.length) {
-                                    $errorTitle.append($errorTitleSvg);
-                                }
-                                $errorTitle.show();
-                            })
-                            .catch(() => {
-                                $errorList.append(
-                                    "<span>Error al enviar datos a Discord. La validación local fue exitosa.</span>"
-                                );
-                                const $errorTitleSvg = $errorTitle.find("svg.faq-icon").detach();
-                                $errorTitle.text("Éxito Parcial").css("color", "orange");
-                                if ($errorTitleSvg.length) {
-                                    $errorTitle.append($errorTitleSvg);
-                                }
-                                $errorTitle.show(); // Orange for partial success
-                            })
-                            .always(() => {
-                                // Changed from .finally to .always
-                                // Ensure the log section is visible
-                                if (!$logWrapper.find(".faq-cont .faq").hasClass("is-open")) {
-                                    $logWrapper
-                                        .find(".faq-cont .faq")
-                                        .show()
-                                        .addClass("is-open")
-                                        .closest(".faq-cont")
-                                        .find(".faq-a")
-                                        .slideDown(200);
-                                }
-                            });
-                    } catch (e) {
-                        console.error("Error saving to localStorage:", e);
-                        $errorList.append(`<span>Error al guardar en localStorage: ${e.message}</span><br>`);
-                        const $errorTitleSvg = $errorTitle.find("svg.faq-icon").detach();
-                        $errorTitle.text("Oops! Hay algunos errores").css("color", "#f45d5d");
-                        if ($errorTitleSvg.length) {
-                            $errorTitle.append($errorTitleSvg);
-                        }
-                        $errorTitle.show();
-                    }
-                }
-                // Ensure the log section is visible if there's any message (error or success from validation part)
-                // This will be re-evaluated after Discord send attempt in the success case.
-                if ($errorList.children().length > 0 && allErrors.length > 0) {
-                    // Only show if initial validation had errors
-                    if (!$logWrapper.find(".faq-cont .faq").hasClass("is-open")) {
-                        $logWrapper
-                            .find(".faq-cont .faq")
-                            .show()
-                            .addClass("is-open")
-                            .closest(".faq-cont")
-                            .find(".faq-a")
-                            .slideDown(200);
-                    }
-                }
+    $validateButton.on("click", function() {
+        handleDeckValidation();
+    });
+
+    $sendButton.on("click", function(event) {
+        event.preventDefault();
+        if (sendRequestInProgress) {
+            console.warn("Send already in progress.");
+            return;
+        }
+        if (!decksAreValid || !validatedDeckData) {
+            displayLogMessage(["Por favor, valide los mazos primero."], "Error de Envío", "#f45d5d", true);
+            return;
+        }
+
+        sendRequestInProgress = true;
+        $sendButton.prop("disabled", true).addClass("loading-active");
+        startButtonLoadingAnimation($sendButton, "Enviando", "send");
+        clearLog();
+
+        const player1Name = getElementValue("jugador-1-nombre");
+        const player2Name = getElementValue("jugador-2-nombre");
+
+        sendToDiscord(validatedDeckData.player1, validatedDeckData.player2, player1Name, player2Name)
+            .then(() => {
+                displayLogMessage(["Datos enviados a Discord con éxito."], "Envío Exitoso", "green", false);
+                // Optionally reset state after successful send
+                // decksAreValid = false;
+                // validatedDeckData = null;
+                // $sendButton.prop("disabled", true);
+                // localStorage.removeItem("validatedDecks");
             })
-            .catch((error) => {
-                // This catch is for unexpected errors in Promise.all or validatePlayerDeck promise rejections
-                // Individual card errors are handled within playerXResult.errors
-                console.error("Critical error during validation process:", error);
-                $errorList.empty(); // Clear previous messages before adding new critical error
-                $errorList.append(`<span>Error crítico durante la validación: ${error.message || error}</span><br>`);
-                const $errorTitleSvg = $errorTitle.find("svg.faq-icon").detach();
-                $errorTitle.text("Oops! Error Crítico").css("color", "#f45d5d");
-                if ($errorTitleSvg.length) {
-                    $errorTitle.append($errorTitleSvg);
-                }
-                $errorTitle.show();
-                if (!$logWrapper.find(".faq-cont .faq").hasClass("is-open")) {
-                    $logWrapper
-                        .find(".faq-cont .faq")
-                        .show()
-                        .addClass("is-open")
-                        .closest(".faq-cont")
-                        .find(".faq-a")
-                        .slideDown(200);
-                }
+            .catch((xhr, status, error) => {
+                console.error("Error sending data to Discord:", status, error, xhr.responseText);
+                displayLogMessage(["Error al enviar datos a Discord. La validación local fue exitosa."], "Error de Envío", "orange", true);
             })
-            .finally(() => {
-                // jQuery's .always() is used here, but .finally() is the modern Promise standard
-                requestInProgress = false;
-                clearInterval(dotAnimationInterval);
-                dotAnimationInterval = null;
-                $submitButton.removeClass("loading-active").prop("disabled", false).val(originalButtonText);
+            .always(() => { // Use .always for jQuery older versions, or .finally for modern Promises
+                sendRequestInProgress = false;
+                stopButtonLoadingAnimation($sendButton, originalSendButtonText, "send");
+                 // Keep send button enabled if validation was successful, or disable if we want re-validation after send.
+                 // For now, keep it enabled unless inputs change.
+                if (!decksAreValid) { // If for some reason it became invalid during send (should not happen)
+                    $sendButton.prop("disabled", true);
+                }
             });
     });
+
+    // Event listeners for input changes
+    const watchedInputs = [
+        "#jugador-1-comandante", "#jugador-1-mazo",
+        "#jugador-2-comandante", "#jugador-2-mazo",
+        // Also consider player name inputs if they should invalidate
+        // "#jugador-1-nombre", "#jugador-2-nombre"
+    ];
+
+    $(watchedInputs.join(", ")).on("input", function() {
+        if (decksAreValid) {
+            console.log("Input changed, invalidating previous validation.");
+            decksAreValid = false;
+            validatedDeckData = null;
+            $sendButton.prop("disabled", true);
+            localStorage.removeItem("validatedDecks");
+            // Optionally clear the log or add a message
+            // displayLogMessage(["Los datos del mazo han cambiado. Por favor, revalide."], "Atención", "orange", true);
+             $errorList.empty();
+             $errorTitle.text("Los datos han cambiado, por favor revalide.").css("color", "orange").show();
+             if (!$logWrapper.find(".faq-cont .faq").hasClass("is-open")) {
+                $logWrapper.find(".faq-cont .faq").show().addClass("is-open").closest(".faq-cont").find(".faq-a").slideDown(200);
+            }
+        }
+    });
+
 });
