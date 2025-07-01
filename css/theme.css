@@ -160,10 +160,20 @@ body::before {
     border-color: rgba(255, 255, 255, 0.14);
 }
 
-input[type="submit"] {
+input[type="submit"]:not(:disabled), #register button {
     background: var(--accent);
     color: var(--background);
 }
+
+
+input[type="submit"]:disabled {
+    background-color: var(--accent20);
+     color: var(--background);
+        
+    
+}
+
+
 
 #search .searchInput:hover,
 #search .searchInput:focus-visible {
@@ -174,8 +184,8 @@ input[type="submit"] {
 .searchButton:focus-visible,
 header ul img:hover,
 header ul a:focus-visible img,
-input[type="submit"]:hover,
-input[type="submit"]:focus-visible {
+input[type="submit"]:not(:disabled):hover,
+input[type="submit"]:not(:disabled):focus-visible {
     filter: brightness(1.2);
 }
 
