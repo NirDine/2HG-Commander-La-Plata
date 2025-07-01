@@ -623,6 +623,7 @@ main {
     border: 0px;
     cursor: pointer;
     transition: 0.2s ease;
+
 }
 
 #register .button-holder:has(input[type="submit"]:disabled) button {
@@ -632,6 +633,12 @@ main {
 #register .button-holder:not(:has(input[type="submit"]:disabled)) input[type="submit"] {
     flex: 1;
 }
+
+#register .button-holder:not(:has(input[type="submit"]:disabled)) input[type="submit"] {
+    flex: 1;
+}
+
+
 
 
 

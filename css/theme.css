@@ -173,9 +173,6 @@ input[type="submit"]:disabled {
     
 }
 
-#register .button-holder:not(:has(input[type="submit"]:disabled)) button {
-     background-color: var(--accent20)
-}
 
 
 #search .searchInput:hover,
