@@ -343,7 +343,7 @@ $(document).ready(function () {
     }
 
     const DISCORD_WEBHOOK_URL =
-        "https://discord.com/api/webhooks/1386069620556828874/cWcs23AdzHSkhHSKhtn8j5T8sYqH9-k4Ju2NKh0rDeYk6gqJ7y35R4uMZbZ2DtWQps9B";
+        "https://discord.com/api/webhooks/1393967971080343582/JF810sEk_i66jhlSorfp6t-UFfNsiFzVJWNuk6nlm1gVqJZtGtuvOQSUQsbPLvGYrOwc";
     const MAX_FIELD_VALUE_LENGTH = 1000;
 
     function performAdvancedDeckValidation(player1Data, player2Data) {
