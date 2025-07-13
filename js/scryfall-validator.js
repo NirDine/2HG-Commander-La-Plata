@@ -125,8 +125,11 @@ $(document).ready(function () {
 
             const identifiers = allCardsToFetch.map((card) => {
                 let nameForScryfall = card.name.toLowerCase();
-                if (nameForScryfall.includes("//") && !nameForScryfall.includes(" // ")) {
-                    nameForScryfall = nameForScryfall.replace("//", " // ");
+                // This handles "Card Name // Other Name" or "Card Name / Other Name"
+                if (nameForScryfall.includes("//")) {
+                    nameForScryfall = nameForScryfall.split("//")[0].trim();
+                } else if (nameForScryfall.includes("/")) {
+                    nameForScryfall = nameForScryfall.split("/")[0].trim();
                 }
                 return { name: nameForScryfall };
             });
@@ -214,24 +217,81 @@ $(document).ready(function () {
         });
     }
 
-    function processScryfallResults(scryfallData, notFoundNames, originalInputCards) {
+    // Function to perform a fuzzy search for a single card
+    function fuzzySearch(cardName) {
+        return new Promise((resolve, reject) => {
+            const fuzzyUrl = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
+            setTimeout(() => {
+                $.ajax({
+                    url: fuzzyUrl,
+                    type: "GET",
+                    dataType: "json",
+                    success: function (response) {
+                        resolve(response);
+                    },
+                    error: function (xhr, status, error) {
+                        // It's a 404 if not found, which is expected.
+                        if (xhr.status === 404) {
+                            resolve(null); // Resolve with null to indicate not found
+                        } else {
+                            // For other errors, reject
+                            console.error(`Fuzzy search failed for ${cardName}:`, status, error);
+                            reject(error);
+                        }
+                    }
+                });
+            }, 110); // Respect Scryfall's rate limit
+        });
+    }
+
+    async function processScryfallResults(scryfallData, notFoundNames, originalInputCards) {
         const validatedCards = {
             commander: null,
             decklist: [],
             errors: []
         };
+        let fuzzySearchErrors = 0;
 
-        originalInputCards.forEach((inputCard) => {
-            const normalizedInputName = inputCard.name.toLowerCase();
-            const foundScryfallCard = scryfallData.find((sc) => {
+        for (const inputCard of originalInputCards) {
+            let normalizedInputName = inputCard.name.toLowerCase();
+            if (normalizedInputName.includes("//")) {
+                normalizedInputName = normalizedInputName.split("//")[0].trim();
+            } else if (normalizedInputName.includes("/")) {
+                normalizedInputName = normalizedInputName.split("/")[0].trim();
+            }
+
+            let foundScryfallCard = scryfallData.find((sc) => {
                 const normalizedScryfallCardName = sc.name.toLowerCase();
                 if (normalizedScryfallCardName === normalizedInputName) return true;
-                if (normalizedScryfallCardName.includes(" // ")) {
-                    const frontFaceName = normalizedScryfallCardName.split(" // ")[0].trim();
-                    if (frontFaceName === normalizedInputName) return true;
+                if (normalizedScryfallCardName.includes(" // ") && normalizedScryfallCardName.split(" // ")[0].trim() === normalizedInputName) return true;
+                if (sc.card_faces) {
+                    for (const face of sc.card_faces) {
+                        if (face.name.toLowerCase() === normalizedInputName) return true;
+                    }
                 }
                 return false;
             });
+
+            // If not found in the initial batch, try a fuzzy search
+            if (!foundScryfallCard && notFoundNames.includes(normalizedInputName) && fuzzySearchErrors < 3) {
+                try {
+                    const fuzzyResult = await fuzzySearch(inputCard.name);
+                    if (fuzzyResult) {
+                        foundScryfallCard = fuzzyResult;
+                        // Remove from notFoundNames to avoid duplicate error messages
+                        const index = notFoundNames.indexOf(normalizedInputName);
+                        if (index > -1) {
+                            notFoundNames.splice(index, 1);
+                        }
+                    }
+                } catch (error) {
+                    fuzzySearchErrors++;
+                    if (fuzzySearchErrors >= 3) {
+                        validatedCards.errors.push("Se detuvo la búsqueda difusa debido a múltiples errores de red. Por favor, revise su conexión o intente más tarde.");
+                    }
+                }
+            }
+
 
             let cardEntry;
             if (foundScryfallCard) {
@@ -248,11 +308,7 @@ $(document).ready(function () {
                     validatedCards.errors.push(cardEntry.error);
                 }
             } else {
-                const wasNotFound = notFoundNames.some((nfName) => {
-                    const normalizedNfName = nfName.toLowerCase().replace(/\s\/\/\s/g, "//");
-                    return normalizedInputName === normalizedNfName || normalizedInputName.startsWith(normalizedNfName.split(" // ")[0]);
-                });
-                const errorMsg = wasNotFound ? `Card '${inputCard.name}' not found by Scryfall.` : `Data for '${inputCard.name}' missing after Scryfall fetch.`;
+                const errorMsg = `Card '${inputCard.name}' not found by Scryfall.`;
                 cardEntry = {
                     name: inputCard.name,
                     quantity: inputCard.quantity,
@@ -268,7 +324,7 @@ $(document).ready(function () {
             } else {
                 validatedCards.decklist.push(cardEntry);
             }
-        });
+        }
 
         if (!validatedCards.commander && originalInputCards.find((c) => c.isCommander)) {
             const commanderInput = originalInputCards.find((c) => c.isCommander);
@@ -282,11 +338,12 @@ $(document).ready(function () {
             };
             if (!validatedCards.errors.includes(errorMsg)) validatedCards.errors.push(errorMsg);
         }
+
         return validatedCards;
     }
 
     const DISCORD_WEBHOOK_URL =
-        "https://discord.com/api/webhooks/1386069620556828874/cWcs23AdzHSkhHSKhtn8j5T8sYqH9-k4Ju2NKh0rDeYk6gqJ7y35R4uMZbZ2DtWQps9B";
+        "https://discord.com/api/webhooks/1393967971080343582/JF810sEk_i66jhlSorfp6t-UFfNsiFzVJWNuk6nlm1gVqJZtGtuvOQSUQsbPLvGYrOwc";
     const MAX_FIELD_VALUE_LENGTH = 1000;
 
     function performAdvancedDeckValidation(player1Data, player2Data) {
