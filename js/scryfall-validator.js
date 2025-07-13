@@ -217,14 +217,42 @@ $(document).ready(function () {
         });
     }
 
-    function processScryfallResults(scryfallData, notFoundNames, originalInputCards) {
+    // Function to perform a fuzzy search for a single card
+    function fuzzySearch(cardName) {
+        return new Promise((resolve, reject) => {
+            const fuzzyUrl = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`;
+            setTimeout(() => {
+                $.ajax({
+                    url: fuzzyUrl,
+                    type: "GET",
+                    dataType: "json",
+                    success: function (response) {
+                        resolve(response);
+                    },
+                    error: function (xhr, status, error) {
+                        // It's a 404 if not found, which is expected.
+                        if (xhr.status === 404) {
+                            resolve(null); // Resolve with null to indicate not found
+                        } else {
+                            // For other errors, reject
+                            console.error(`Fuzzy search failed for ${cardName}:`, status, error);
+                            reject(error);
+                        }
+                    }
+                });
+            }, 110); // Respect Scryfall's rate limit
+        });
+    }
+
+    async function processScryfallResults(scryfallData, notFoundNames, originalInputCards) {
         const validatedCards = {
             commander: null,
             decklist: [],
             errors: []
         };
+        let fuzzySearchErrors = 0;
 
-        originalInputCards.forEach((inputCard) => {
+        for (const inputCard of originalInputCards) {
             let normalizedInputName = inputCard.name.toLowerCase();
             if (normalizedInputName.includes("//")) {
                 normalizedInputName = normalizedInputName.split("//")[0].trim();
@@ -232,11 +260,10 @@ $(document).ready(function () {
                 normalizedInputName = normalizedInputName.split("/")[0].trim();
             }
 
-            const foundScryfallCard = scryfallData.find((sc) => {
+            let foundScryfallCard = scryfallData.find((sc) => {
                 const normalizedScryfallCardName = sc.name.toLowerCase();
                 if (normalizedScryfallCardName === normalizedInputName) return true;
                 if (normalizedScryfallCardName.includes(" // ") && normalizedScryfallCardName.split(" // ")[0].trim() === normalizedInputName) return true;
-                // ADDED: Check for aliases (e.g., "The Cloudsea Djinn" for "Nyxbloom Ancient")
                 if (sc.card_faces) {
                     for (const face of sc.card_faces) {
                         if (face.name.toLowerCase() === normalizedInputName) return true;
@@ -245,11 +272,32 @@ $(document).ready(function () {
                 return false;
             });
 
+            // If not found in the initial batch, try a fuzzy search
+            if (!foundScryfallCard && notFoundNames.includes(normalizedInputName) && fuzzySearchErrors < 3) {
+                try {
+                    const fuzzyResult = await fuzzySearch(inputCard.name);
+                    if (fuzzyResult) {
+                        foundScryfallCard = fuzzyResult;
+                        // Remove from notFoundNames to avoid duplicate error messages
+                        const index = notFoundNames.indexOf(normalizedInputName);
+                        if (index > -1) {
+                            notFoundNames.splice(index, 1);
+                        }
+                    }
+                } catch (error) {
+                    fuzzySearchErrors++;
+                    if (fuzzySearchErrors >= 3) {
+                        validatedCards.errors.push("Se detuvo la búsqueda difusa debido a múltiples errores de red. Por favor, revise su conexión o intente más tarde.");
+                    }
+                }
+            }
+
+
             let cardEntry;
             if (foundScryfallCard) {
                 const isLegal = foundScryfallCard.legalities && foundScryfallCard.legalities.commander === "legal";
                 cardEntry = {
-                    name: foundScryfallCard.name, // Use the name from Scryfall
+                    name: foundScryfallCard.name,
                     quantity: inputCard.quantity,
                     scryfall_data: foundScryfallCard,
                     is_legal: isLegal,
@@ -260,8 +308,7 @@ $(document).ready(function () {
                     validatedCards.errors.push(cardEntry.error);
                 }
             } else {
-                const wasNotFound = notFoundNames.includes(normalizedInputName);
-                const errorMsg = wasNotFound ? `Card '${inputCard.name}' not found by Scryfall.` : `Data for '${inputCard.name}' missing after Scryfall fetch.`;
+                const errorMsg = `Card '${inputCard.name}' not found by Scryfall.`;
                 cardEntry = {
                     name: inputCard.name,
                     quantity: inputCard.quantity,
@@ -277,7 +324,7 @@ $(document).ready(function () {
             } else {
                 validatedCards.decklist.push(cardEntry);
             }
-        });
+        }
 
         if (!validatedCards.commander && originalInputCards.find((c) => c.isCommander)) {
             const commanderInput = originalInputCards.find((c) => c.isCommander);
@@ -291,6 +338,7 @@ $(document).ready(function () {
             };
             if (!validatedCards.errors.includes(errorMsg)) validatedCards.errors.push(errorMsg);
         }
+
         return validatedCards;
     }
 
