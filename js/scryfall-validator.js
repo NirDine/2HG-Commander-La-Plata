@@ -125,8 +125,11 @@ $(document).ready(function () {
 
             const identifiers = allCardsToFetch.map((card) => {
                 let nameForScryfall = card.name.toLowerCase();
-                if (nameForScryfall.includes("//") && !nameForScryfall.includes(" // ")) {
-                    nameForScryfall = nameForScryfall.replace("//", " // ");
+                // This handles "Card Name // Other Name" or "Card Name / Other Name"
+                if (nameForScryfall.includes("//")) {
+                    nameForScryfall = nameForScryfall.split("//")[0].trim();
+                } else if (nameForScryfall.includes("/")) {
+                    nameForScryfall = nameForScryfall.split("/")[0].trim();
                 }
                 return { name: nameForScryfall };
             });
@@ -222,13 +225,22 @@ $(document).ready(function () {
         };
 
         originalInputCards.forEach((inputCard) => {
-            const normalizedInputName = inputCard.name.toLowerCase();
+            let normalizedInputName = inputCard.name.toLowerCase();
+            if (normalizedInputName.includes("//")) {
+                normalizedInputName = normalizedInputName.split("//")[0].trim();
+            } else if (normalizedInputName.includes("/")) {
+                normalizedInputName = normalizedInputName.split("/")[0].trim();
+            }
+
             const foundScryfallCard = scryfallData.find((sc) => {
                 const normalizedScryfallCardName = sc.name.toLowerCase();
                 if (normalizedScryfallCardName === normalizedInputName) return true;
-                if (normalizedScryfallCardName.includes(" // ")) {
-                    const frontFaceName = normalizedScryfallCardName.split(" // ")[0].trim();
-                    if (frontFaceName === normalizedInputName) return true;
+                if (normalizedScryfallCardName.includes(" // ") && normalizedScryfallCardName.split(" // ")[0].trim() === normalizedInputName) return true;
+                // ADDED: Check for aliases (e.g., "The Cloudsea Djinn" for "Nyxbloom Ancient")
+                if (sc.card_faces) {
+                    for (const face of sc.card_faces) {
+                        if (face.name.toLowerCase() === normalizedInputName) return true;
+                    }
                 }
                 return false;
             });
@@ -237,7 +249,7 @@ $(document).ready(function () {
             if (foundScryfallCard) {
                 const isLegal = foundScryfallCard.legalities && foundScryfallCard.legalities.commander === "legal";
                 cardEntry = {
-                    name: foundScryfallCard.name,
+                    name: foundScryfallCard.name, // Use the name from Scryfall
                     quantity: inputCard.quantity,
                     scryfall_data: foundScryfallCard,
                     is_legal: isLegal,
@@ -248,10 +260,7 @@ $(document).ready(function () {
                     validatedCards.errors.push(cardEntry.error);
                 }
             } else {
-                const wasNotFound = notFoundNames.some((nfName) => {
-                    const normalizedNfName = nfName.toLowerCase().replace(/\s\/\/\s/g, "//");
-                    return normalizedInputName === normalizedNfName || normalizedInputName.startsWith(normalizedNfName.split(" // ")[0]);
-                });
+                const wasNotFound = notFoundNames.includes(normalizedInputName);
                 const errorMsg = wasNotFound ? `Card '${inputCard.name}' not found by Scryfall.` : `Data for '${inputCard.name}' missing after Scryfall fetch.`;
                 cardEntry = {
                     name: inputCard.name,
